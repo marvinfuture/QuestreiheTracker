@@ -6,7 +6,7 @@
 - Shows the supplied localized line name directly in the header, with a full-name tooltip. Missing names can be recovered from matching member-quest metadata, including filtered lines or failed map discovery; known names survive temporary missing data. No static names or IDs were added.
 - Changed visible German terminology and the display title to **Questreihe** / **Questreihe Tracker**. Technical addon paths and SavedVariables remain compatible.
 
-Verification: 92 offline behavioral cases, separate startup/reload checks and 37 static guard cases pass with zero attempted game mutations or invalid API IDs. Coverage includes selection/removal, delayed names, metadata matching, persistence and compact-header wiring. Actual 0.3.1 client removal, name availability, layout and taint checks are pending in docs/IN_GAME_TEST.md. No push or release performed.
+Verification: 92 offline behavioral cases, separate startup/reload checks and 37 static guard cases pass with zero attempted game mutations or invalid API IDs. Coverage includes selection/removal, delayed names, metadata matching, persistence and compact-header wiring. GitHub CI also passes. Actual 0.3.1 client removal, name availability, layout and taint checks are pending in docs/IN_GAME_TEST.md.
 
 ## 0.3.0 — 2026-10-09
 

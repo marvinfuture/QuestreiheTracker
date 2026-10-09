@@ -25,4 +25,4 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh release create "$TAG_NAME" "outputs/QuestStrangTracker-$TAG_NAME.zip" \
-            --verify-tag --generate-notes --title "QuestStrangTracker $TAG_NAME"
+            --verify-tag --generate-notes --title "Questreihe Tracker $TAG_NAME"

@@ -6,7 +6,7 @@ The German interface has a movable, resizable quest list, a small quest-line sel
 
 ## Install and test
 
-1. Extract `outputs/QuestStrangTracker-v0.3.1.zip` into `World of Warcraft/_retail_/Interface/AddOns/`.
+1. Download `QuestStrangTracker-v0.3.1.zip` from [the release](https://github.com/marvinfuture/QuestreiheTracker/releases/tag/v0.3.1) and extract it into `World of Warcraft/_retail_/Interface/AddOns/`.
 2. Confirm the result is `AddOns/QuestStrangTracker/QuestStrangTracker.toc`, without an extra nested folder.
 3. Enable the addon and use `/reload`.
 4. Open it with `/qst` or the minimap logo. Click **Questreihe auswählen**.
@@ -83,4 +83,4 @@ On this Windows workspace, `scripts/check.cmd` can use Codex's bundled Python ru
 | `UIHelpers.lua`, `UI.lua`, `Minimap.lua` | Compact native UI |
 | `Locale.lua`, `Core.lua` | German text, preferences and events |
 
-[Data sources](docs/DATA_SOURCES.md), [display-only contract](docs/DISPLAY_ONLY.md) and [technical notes](TECHNICAL_NOTES.md) document the boundaries. The local ZIP is an installable test build. The user's client test precedes any Git push; no remote, push or release is performed by packaging.
+[Data sources](docs/DATA_SOURCES.md), [display-only contract](docs/DISPLAY_ONLY.md) and [technical notes](TECHNICAL_NOTES.md) document the boundaries. The release ZIP contains the complete addon; local packages are also built in `outputs/`. Packaging does not publish or push. Git pushes and releases require the user's instruction; actual client results are recorded separately from offline checks.
