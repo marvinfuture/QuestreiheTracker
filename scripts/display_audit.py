@@ -1,4 +1,4 @@
-"""Static regression guard for this addon's small display-only API surface.
+"""Static regression guard for this addon's small reviewed API surface.
 
 This token check complements executed Lua tests and human review. It is not a
 complete Lua analyzer or proof of behavior in a real WoW client.
@@ -13,17 +13,19 @@ API_MEMBERS = {
     "C_QuestLog.GetTitleForQuestID", "C_QuestLog.RequestLoadQuestByID",
     "C_QuestLog.GetNumQuestWatches", "C_QuestLog.GetQuestIDForQuestWatchIndex",
     "C_QuestLog.GetNumWorldQuestWatches", "C_QuestLog.GetQuestIDForWorldQuestWatchIndex",
+    "C_QuestLog.IsWorldQuest", "C_QuestLog.IsQuestTask", "C_QuestLog.AddQuestWatch",
+    "C_QuestLog.GetNumQuestLogEntries", "C_QuestLog.GetInfo", "C_QuestLog.GetQuestsOnMap",
     "C_QuestLine.RequestQuestLinesForMap", "C_QuestLine.GetAvailableQuestLines",
     "C_QuestLine.GetQuestLineQuests", "C_Map.GetBestMapForUnit",
     "C_QuestLine.GetQuestLineInfo", "C_SuperTrack.GetSuperTrackedQuestID",
     "C_SuperTrack.IsSuperTrackingQuest", "C_SuperTrack.GetHighestPrioritySuperTrackingType",
-    "C_Map.GetMapInfo", "C_GossipInfo.GetAvailableQuests", "C_Timer.After",
+    "C_Map.GetMapInfo", "C_GossipInfo.GetAvailableQuests", "C_Timer.After", "C_Timer.NewTimer",
 }
 API_NAMESPACES = {member.split(".")[0] for member in API_MEMBERS}
 SAFE_GLOBALS = {
     "CreateFrame", "UIParent", "Minimap", "GameTooltip", "UISpecialFrames",
-    "DEFAULT_CHAT_FRAME", "UIErrorsFrame", "SlashCmdList", "Enum",
-    "QuestStrangTrackerDB", "SLASH_QUESTSTRANGTRACKER1", "UnitFactionGroup",
+    "DEFAULT_CHAT_FRAME", "UIErrorsFrame", "SlashCmdList", "Enum", "Constants", "GetTime",
+    "QuestreihenTrackerDB", "SLASH_QUESTREIHENTRACKER1", "UnitFactionGroup",
     "UnitExists", "GetQuestID", "GetBuildInfo", "InCombatLockdown",
     "GetAchievementInfo", "GetAchievementNumCriteria", "GetAchievementCriteriaInfo",
     "GetCursorPosition",
@@ -154,6 +156,16 @@ def _audit_source(source, name):
     tokens = _tokens(source, name)
     locals_ = _local_identifiers(tokens)
     members, globals_ = set(), set()
+    watch_lines = set()
+    # This sole opt-in mutation must stay a direct call inside the adapter's
+    # reviewed entry point. Keep all aliases and every other mutation forbidden.
+    watch_function = re.search(r"^function WoW\.WatchQuest\(questID\)\r?\n(.*?)^end\s*$",
+                               source, re.MULTILINE | re.DOTALL)
+    if name == "WoW.lua" and watch_function:
+        first = source[:watch_function.start()].count("\n") + 1
+        last = source[:watch_function.end()].count("\n") + 1
+        watch_lines = set(range(first, last + 1))
+    watch_calls = 0
     for index, token in enumerate(tokens):
         value = token.value
         previous = tokens[index-1].value if index else None
@@ -163,7 +175,15 @@ def _audit_source(source, name):
             continue
         if token.kind != "identifier":
             continue
-        assert value not in FORBIDDEN_IDENTIFIERS, f"{name}:{token.line}: forbidden action/indirection {value}"
+        if value == "AddQuestWatch":
+            exact_call = [item.value for item in tokens[max(0, index-2):index+4]]
+            assert token.line in watch_lines and exact_call == [
+                "C_QuestLog", ".", "AddQuestWatch", "(", "questID", ")"], (
+                    f"{name}:{token.line}: quest watch must be the direct adapter call")
+            watch_calls += 1
+            assert watch_calls == 1, f"{name}:{token.line}: duplicate quest-watch mutation"
+        else:
+            assert value not in FORBIDDEN_IDENTIFIERS, f"{name}:{token.line}: forbidden action/indirection {value}"
         if value.startswith("C_"):
             assert value in API_NAMESPACES, f"{name}:{token.line}: unreviewed API namespace {value}"
             assert following in {".", "and"}, f"{name}:{token.line}: indirect API access {value}"
@@ -180,7 +200,7 @@ def _audit_source(source, name):
         if value in SAFE_GLOBALS and previous not in {".", ":"}:
             globals_.add(value)
             if following == "=":
-                assert value in {"QuestStrangTrackerDB", "SLASH_QUESTSTRANGTRACKER1"}, f"{name}:{token.line}: global replacement {value}"
+                assert value in {"QuestreihenTrackerDB", "SLASH_QUESTREIHENTRACKER1"}, f"{name}:{token.line}: global replacement {value}"
     return members, globals_
 
 
@@ -209,11 +229,13 @@ def self_test():
         "local tasks = GetTasksTable(); local inArea = GetTaskInfo(78743)",
         "local count = C_QuestLog.GetNumQuestWatches(); local id = C_QuestLog.GetQuestIDForQuestWatchIndex(1)",
         "local UI = {}; UI.Render = function() end; UI.Render()",
-        "QuestStrangTrackerDB = {}; SLASH_QUESTSTRANGTRACKER1 = '/qst'",
+        "QuestreihenTrackerDB = {}; SLASH_QUESTREIHENTRACKER1 = '/qrt'",
         "local text = 'AcceptQuest _G C_QuestLog.AbandonQuest'; -- RunMacroText()\n"
         "--[=[ C_GossipInfo.SelectAvailableQuest(78743) ]=] local number = 1",
         "local text = [=[RequestLoadQuestByID and AbandonQuest are distinct]=]",
         "local text = 'escaped \\' string'; local value = C_Map.GetBestMapForUnit('player')",
+        "local limit = Constants.QuestWatchConsts.MAX_QUEST_WATCHES; local now = GetTime()",
+        "C_Timer.NewTimer(0.1, function() end)",
     ]
     forbidden = [
         "AcceptQuest()", "local action = AcceptQuest; pcall(action)",
@@ -229,6 +251,8 @@ def self_test():
         "C_ChatInfo.SendAddonMessage('QST', 'test', 'GUILD')", "SendChatMessage('test')",
         "QuestMapFrame_OpenToQuestDetails(78743)", "local fn = SomeNewGameAPI; fn()",
         "C_QuestLog.GetInfo = function() end", "CreateFrame = function() end",
+        "C_QuestLog.AddQuestWatch(78743)", "AddQuestWatch(78743)",
+        "local watch = C_QuestLog.AddQuestWatch; watch(78743)",
     ]
     for source in allowed:
         _audit_source(source, "allowed fixture")
@@ -239,11 +263,28 @@ def self_test():
             pass
         else:
             raise AssertionError(f"Static audit accepted forbidden fixture: {source}")
-    return len(allowed) + len(forbidden)
+    direct_watch = "local WoW = {}\nfunction WoW.WatchQuest(questID)\n    return C_QuestLog.AddQuestWatch(questID)\nend\n"
+    _audit_source(direct_watch, "WoW.lua")
+    for source, name in [
+        (direct_watch, "UI.lua"),
+        (direct_watch.replace("WatchQuest", "Refresh"), "WoW.lua"),
+        (direct_watch.replace("questID)", "78743)", 1), "WoW.lua"),
+        (direct_watch.replace("return C_QuestLog.AddQuestWatch(questID)",
+                              "local watch = C_QuestLog.AddQuestWatch; return watch(questID)"), "WoW.lua"),
+        (direct_watch.replace("return C_QuestLog.AddQuestWatch(questID)",
+                              "C_QuestLog.AddQuestWatch(questID); return C_QuestLog.AddQuestWatch(questID)"), "WoW.lua"),
+    ]:
+        try:
+            _audit_source(source, name)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"Static audit accepted unreviewed quest watch: {source}")
+    return len(allowed) + len(forbidden) + 6
 
 
 if __name__ == "__main__":
     count = self_test()
-    summary = audit_addon(Path(__file__).resolve().parents[1] / "addon" / "QuestStrangTracker")
+    summary = audit_addon(Path(__file__).resolve().parents[1] / "addon" / "QuestreihenTracker")
     print(f"Display-only static guard self-tests passed: {count}")
     print(f"Display-only static API audit: {summary['files']} Lua files; {len(summary['api_members'])} allowed C API members.")

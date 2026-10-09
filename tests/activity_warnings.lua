@@ -33,7 +33,7 @@ local function reset()
     ns.WoW.RegisterQuestLine(chain)
     ns.db = ns.ReadConfig({ selectedChain = chain.id,
         liveSelection = { mapID = chain.mapID, questLineID = chain.questLineID } })
-    QuestStrangTrackerDB = ns.db
+    QuestreihenTrackerDB = ns.db
     ns.WoW.requested, ns.WoW.failedRequests = {}, {}
     ns.WoW.ResetWarnings()
     ns.Refresh()

@@ -13,8 +13,7 @@ local function mapInfo(mapID)
     return WoW.Call(C_Map and C_Map.GetMapInfo, mapID)
 end
 
-local function currentZone()
-    local mapID = WoW.Call(C_Map and C_Map.GetBestMapForUnit, "player")
+local function zoneForMap(mapID)
     if not LiveData.IsID(mapID) then return nil end
     local original, seen = mapID, {}
     -- Prefer the zone for city/subzone maps; never scan continents or the world.
@@ -28,6 +27,10 @@ local function currentZone()
         mapID = info.parentMapID
     end
     return original
+end
+
+local function currentZone()
+    return zoneForMap(WoW.Call(C_Map and C_Map.GetBestMapForUnit, "player"))
 end
 
 local function requestMap(mapID, force)
@@ -135,6 +138,75 @@ local function resolveSelectedName(map, selected)
     end
 end
 
+local function member(chain, questID)
+    if not chain or chain.loading then return false end
+    local _, byID = ns.Model.Flatten(chain)
+    return byID[questID] ~= nil
+end
+
+local function activeLineInfo(questID, mapID, questMapID)
+    local info = WoW.Call(C_QuestLine.GetQuestLineInfo, questID, nil, false)
+    if info == nil then info = WoW.Call(C_QuestLine.GetQuestLineInfo, questID, mapID, false) end
+    if info == nil and LiveData.IsID(questMapID) and questMapID ~= mapID then
+        info = WoW.Call(C_QuestLine.GetQuestLineInfo, questID, questMapID, false)
+    end
+    if type(info) == "table" and LiveData.IsID(info.questLineID) then return info end
+end
+
+local function addActiveLines(map, chains, seen)
+    if map.mapID ~= state.currentMapID
+        or type(C_QuestLine and C_QuestLine.GetQuestLineInfo) ~= "function" then return end
+    local candidates, visited = {}, {}
+    local function addQuest(questID)
+        if LiveData.IsID(questID) and not visited[questID] then
+            visited[questID], candidates[#candidates + 1] = true, questID
+        end
+    end
+    local count = WoW.Call(C_QuestLog and C_QuestLog.GetNumQuestLogEntries)
+    if type(count) == "number" and count >= 0 and count <= 1000 and count == math.floor(count) then
+        for index = 1, count do
+            local entry = WoW.Call(C_QuestLog and C_QuestLog.GetInfo, index)
+            if type(entry) == "table" and not entry.isHeader then addQuest(entry.questID) end
+        end
+    end
+    -- Map POIs can still expose accepted quests under collapsed log headers.
+    local onMap = WoW.Call(C_QuestLog and C_QuestLog.GetQuestsOnMap, map.mapID)
+    if type(onMap) == "table" then
+        for _, entry in ipairs(onMap) do
+            if type(entry) == "table" then addQuest(entry.questID) end
+        end
+    end
+    for _, questID in ipairs(candidates) do
+        if WoW.Call(C_QuestLog and C_QuestLog.IsOnQuest, questID) == true then
+            -- Ignore route waypoints: relevance comes from the quest destination
+            -- or the line's Blizzard-provided start map, normalized to this zone.
+            local questMapID = WoW.Call(GetQuestUiMapID, questID, true)
+            local info = activeLineInfo(questID, map.mapID, questMapID)
+            if info and (zoneForMap(info.startMapID) == map.mapID or zoneForMap(questMapID) == map.mapID) then
+                local id = LiveData.Key(map.mapID, info.questLineID)
+                if not seen[id] then
+                    local questIDs = WoW.Call(C_QuestLine.GetQuestLineQuests, info.questLineID)
+                    local chain = LiveData.Build(map.mapID, info, questIDs)
+                    -- An association alone does not prove membership. Retain
+                    -- previously verified membership only for an empty cache.
+                    if not chain and (questIDs == nil or (type(questIDs) == "table" and next(questIDs) == nil)) then
+                        chain = map.byID[id]
+                    end
+                    if member(chain, questID) then
+                        preserveName(chain, map.byID[id])
+                        if LiveData.IsName(info.questLineName) then
+                            chain.name, chain.nameKnown = info.questLineName, true
+                            chain.nameSourceAPI = "C_QuestLine.GetQuestLineInfo"
+                        end
+                        chain.sourceAPI, chain.suggestedQuestID = "C_QuestLine.GetQuestLineInfo", nil
+                        chains[#chains + 1], map.byID[id], seen[id] = chain, chain, true
+                    end
+                end
+            end
+        end
+    end
+end
+
 local function readMap(map, selected)
     if map.needsRequest then
         map.needsRequest = nil
@@ -148,6 +220,12 @@ local function readMap(map, selected)
     local infos = WoW.Call(C_QuestLine.GetAvailableQuestLines, map.mapID)
     if type(infos) ~= "table" then
         map.error = "ERROR"
+        -- Keep previously read map candidates on a transient map failure, but
+        -- still allow independently verified accepted lines to appear.
+        local seen = {}
+        for _, chain in ipairs(map.chains) do seen[chain.id] = true end
+        addActiveLines(map, map.chains, seen)
+        table.sort(map.chains, function(a, b) return a.name == b.name and a.id < b.id or a.name < b.name end)
         resolveSelectedName(map, selected)
         return
     end
@@ -175,6 +253,9 @@ local function readMap(map, selected)
             end
         end
     end
+    -- Available map pins are not a complete list of accepted quest lines.
+    -- Supplement them with exact, current-zone associations from the quest log.
+    addActiveLines(map, chains, seen)
     map.chains = chains
     if #infos > 0 then map.loaded = true end
     -- Completed/filtered lines can disappear from map discovery. Keep the user's

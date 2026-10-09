@@ -1,10 +1,21 @@
 # Changelog
 
+## 0.4.0 — 2026-10-09
+
+- Added explicit left-click observing for accepted regular quests through Blizzard's quest-watch API, with membership/ID/kind/limit checks and local failure messages. Repeated clicks keep existing watches; navigation is not set.
+- Made the background partly transparent, narrowed the tracker to 360 × 500 (minimum 320 × 300), removed availability suffixes from status rows, and allowed two-line titles.
+- Renamed the product to Questreihen Tracker and updated install folder, TOC, SavedVariables, globals, assets, workspace, commands and package identity. Replacing the former install starts fresh preferences.
+- Added “Verfolgte Quest” to the main window with visible lookup results.
+- Supplemented current-zone available candidates with accepted log/map-POI quests, requiring verified line membership and zone relevance. Preserved candidates on transient map failures; no curated facts or complete catalogue claims were added.
+- Added a prominent warning banner with twice the native error display duration and one shared cancellable timer for refresh/expiry.
+
+Validation: offline Lua 5.1 and static API-boundary checks; actual client layout, Trauerhöhe coverage, quest watching and taint remain pending in docs/IN_GAME_TEST.md. No publishing performed.
+
 ## 0.3.1 — 2026-10-09
 
 - Added a compact **Entfernen** button beside the selected line. It clears the display and saved selection, cancels pending lookup and prevents late replies from restoring it. Window geometry and Blizzard quests/tracking remain unchanged.
 - Shows the supplied localized line name directly in the header, with a full-name tooltip. Missing names can be recovered from matching member-quest metadata, including filtered lines or failed map discovery; known names survive temporary missing data. No static names or IDs were added.
-- Changed visible German terminology and the display title to **Questreihe** / **Questreihe Tracker**. Technical addon paths and SavedVariables remain compatible.
+- Changed visible German terminology and the display title to **Questreihe** / **Questreihen Tracker**. Technical addon paths and SavedVariables remain compatible.
 
 Verification: 92 offline behavioral cases, separate startup/reload checks and 37 static guard cases pass with zero attempted game mutations or invalid API IDs. Coverage includes selection/removal, delayed names, metadata matching, persistence and compact-header wiring. GitHub CI also passes. Actual 0.3.1 client removal, name availability, layout and taint checks are pending in docs/IN_GAME_TEST.md.
 
@@ -29,7 +40,7 @@ Verification: offline regressions cover tracked/manual lookup, verified membersh
 ## 0.2.3 — 2026-10-09
 
 - Made all four addon windows movable: tracker, quest-line selector, settings and Wowhead-link copy dialog. Drag a title or unused background area; buttons and URL text selection retain their normal behavior.
-- Saved each popup position in validated addon preferences, alongside the existing tracker geometry. Positions survive closing, `/reload` and the next session; `/qst reset` restores all window positions.
+- Saved each popup position in validated addon preferences, alongside the existing tracker geometry. Positions survive closing, `/reload` and the next session; `/qrt reset` restores all window positions.
 
 Verification: client dragging, saved popup placement and copy-field interaction remain unchecked in docs/IN_GAME_TEST.md. Offline checks cannot establish real client layout or taint behavior.
 
@@ -54,7 +65,7 @@ Verification is offline only. Real WoW resize, layout and taint checks remain pe
 
 ## 0.2.0 — 2026-10-09
 
-- Added current-zone quest-line discovery through Blizzard's Retail Lua API and `/qst zone`.
+- Added current-zone quest-line discovery through Blizzard's Retail Lua API and `/qrt zone`.
 - Kept the chooser small: runtime lines first, existing curated stories below, with one refresh button.
 - Added event-driven quest-line and localized-title loading, loading/empty/error states and session-only API caches.
 - Persisted only selected map/line IDs as preferences; a selected line survives zone changes and map filtering.

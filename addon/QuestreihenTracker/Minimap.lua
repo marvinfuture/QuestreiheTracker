@@ -66,7 +66,7 @@ function MinimapButton.Create()
     local icon = button:CreateTexture(nil, "ARTWORK")
     icon:SetSize(20, 20)
     icon:SetPoint("CENTER", button, "CENTER")
-    icon:SetTexture("Interface\\AddOns\\QuestStrangTracker\\Media\\QuestStrangTrackerLogo")
+    icon:SetTexture("Interface\\AddOns\\QuestreihenTracker\\Media\\QuestreihenTrackerLogo")
     button.icon = icon
     -- Blizzard's border sheet contains the small ring in its upper-left corner.
     local border = button:CreateTexture(nil, "OVERLAY")

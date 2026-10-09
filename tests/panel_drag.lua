@@ -90,7 +90,7 @@ test("saved popup positions are isolated validated preferences and reset to defa
         assert(saved.panelPositions[item.key] ~= ns.db.panelPositions[item.key])
         item.frame:SetPoint("CENTER")
     end
-    ns.db, QuestStrangTrackerDB = saved, saved
+    ns.db, QuestreihenTrackerDB = saved, saved
     ns.UI.Restore()
     for _, item in ipairs(panels()) do assertPosition(item.frame, saved.panelPositions[item.key]) end
     local repaired = ns.ReadConfig({ panelPositions = {

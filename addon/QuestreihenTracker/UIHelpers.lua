@@ -1,7 +1,7 @@
 local _, ns = ...
 local UI, L = {}, ns.L
 ns.UI = UI
-UI.MIN_WIDTH, UI.MIN_HEIGHT = 360, 300
+UI.MIN_WIDTH, UI.MIN_HEIGHT = 320, 300
 UI.MAX_WIDTH, UI.MAX_HEIGHT = 1400, 1200
 
 function UI.Text(parent, size, x, y, width)
@@ -68,7 +68,7 @@ function UI.Panel(name, width, height, positionKey)
     panel:SetScript("OnHide", stopPanelMoving)
     panel:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    panel:SetBackdropColor(0.06, 0.065, 0.075, 0.98)
+    panel:SetBackdropColor(0.06, 0.065, 0.075, 0.82)
     panel:SetBackdropBorderColor(0.35, 0.3, 0.18, 1)
     return panel
 end
@@ -94,7 +94,7 @@ function UI.ShowLink(id)
 end
 
 function UI.RenderQuestLookup()
-    if not UI.selector then return end
+    if not UI.selector and not UI.notice then return end
     local lookup = ns.questLookup
     local messages = { INVALID_ID = L.LOOKUP_INVALID, NO_TRACKED = L.LOOKUP_NO_TRACKED,
         UNSUPPORTED = L.LOOKUP_UNSUPPORTED, ERROR = L.LOOKUP_ERROR, NO_MAP = L.LOOKUP_NO_MAP }
@@ -104,7 +104,13 @@ function UI.RenderQuestLookup()
         elseif lookup.status == "NOT_FOUND" then text = string.format(L.LOOKUP_NOT_FOUND, lookup.questID)
         else text = messages[lookup.status] or L.LOOKUP_HINT end
     end
-    UI.selector.lookupStatus:SetText(text)
+    if UI.selector then UI.selector.lookupStatus:SetText(text) end
+    if UI.notice then
+        local showLookup = lookup and lookup.status ~= "READY"
+        UI.notice:SetText(showLookup and text or (ns.chain.empty and L.EMPTY_SELECTION or L.BLIZZARD_NOTICE))
+        if showLookup then UI.notice:SetTextColor(1, 0.8, 0.35)
+        else UI.notice:SetTextColor(0.7, 0.7, 0.7) end
+    end
 end
 
 function UI.RenderSelector()
@@ -215,19 +221,21 @@ function UI.Row(parent, key)
     if UI.rows[key] then return UI.rows[key] end
     local row = CreateFrame("Button", nil, parent)
     local width = parent:GetWidth() - 5
-    row:SetSize(width, 50)
-    row:RegisterForClicks("RightButtonUp")
+    row:SetSize(width, 60)
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
     row.text = UI.Text(row, nil, 28, -3, width - 35)
-    row.text:SetHeight(16)
-    row.subtext = UI.Text(row, nil, 28, -22, width - 35)
-    row.subtext:SetHeight(28)
+    row.text:SetHeight(32)
+    row.text:SetJustifyV("TOP")
+    row.subtext = UI.Text(row, nil, 28, -39, width - 35)
+    row.subtext:SetHeight(18)
     row.subtext:SetTextColor(0.7, 0.7, 0.7)
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetSize(22, 22)
     row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -3)
     row:SetScript("OnClick", function(self, button)
-        if button == "RightButton" then UI.ShowLink(self.questID) end
+        if button == "LeftButton" then ns.TrackQuest(self.questID)
+        elseif button == "RightButton" then UI.ShowLink(self.questID) end
     end)
     row:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")

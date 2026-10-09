@@ -109,7 +109,7 @@ test("reopening and display events restore the saved orbit without polling", fun
     local button = ns.Minimap.button
     local config = ns.ReadConfig(ns.db)
     near(config.minimapAngle, 45)
-    ns.db, QuestStrangTrackerDB = config, config
+    ns.db, QuestreihenTrackerDB = config, config
     button:SetPoint("CENTER", Minimap, "CENTER", 0, 0)
     button:Hide(); button:Show()
     point(118 / math.sqrt(2), 88 / math.sqrt(2))

@@ -43,7 +43,7 @@ local function reset()
     ns.pending = false
     ns.chain, ns.db = ns.LiveData.Empty(), copy(saved.db)
     ns.db.selectedChain, ns.db.liveSelection = ns.chain.id, nil
-    QuestStrangTrackerDB = ns.db
+    QuestreihenTrackerDB = ns.db
     ns.WoW.questLines.maps, ns.WoW.questLines.currentMapID = {}, nil
     ns.WoW.requested, ns.WoW.failedRequests, ns.WoW.offers = {}, {}, {}
     ns.WoW.ResetWarnings()
@@ -421,6 +421,6 @@ ns.WoW.questLines.maps, ns.WoW.questLines.currentMapID = saved.maps, saved.curre
 ns.WoW.requested, ns.WoW.failedRequests, ns.WoW.offers = saved.requested, saved.failedRequests, saved.offers
 ns.WoW.ResetWarnings()
 ns.chain, ns.db, ns.pending = saved.chain, saved.db, false
-QuestStrangTrackerDB = ns.db
+QuestreihenTrackerDB = ns.db
 ns.Refresh()
 print("Quest lookup behavioral tests passed: " .. passed)

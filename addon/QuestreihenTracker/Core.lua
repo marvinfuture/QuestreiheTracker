@@ -1,6 +1,6 @@
 local addonName, ns = ...
 local L = ns.L
-ns.version = "0.3.1"
+ns.version = "0.4.0"
 
 function ns.Print(message)
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cffd8b66a" .. L.TITLE .. "|r: " .. tostring(message)) end
@@ -20,7 +20,7 @@ end
 
 function ns.ReadConfig(saved)
     saved = type(saved) == "table" and saved or {}
-    local config = { schemaVersion = 5, selectedChain = "none", scale = 1, minimapAngle = 315, panelPositions = {} }
+    local config = { schemaVersion = 6, selectedChain = "none", scale = 1, minimapAngle = 315, panelPositions = {} }
     local selection = saved.liveSelection
     if type(selection) == "table" and ns.LiveData.IsID(selection.mapID)
         and ns.LiveData.IsID(selection.questLineID)
@@ -35,9 +35,11 @@ function ns.ReadConfig(saved)
     local size = saved.size
     local legacy = saved.schemaVersion == nil or (type(saved.schemaVersion) == "number" and saved.schemaVersion < 5)
     local oldDefault = legacy and type(size) == "table" and size.width == 550 and size.height == 750
+    local compactLegacy = saved.schemaVersion == nil or (type(saved.schemaVersion) == "number" and saved.schemaVersion < 6)
+    local compactDefault = compactLegacy and type(size) == "table" and size.width == 440 and size.height == 500
     if type(size) == "table" and finite(size.width) and finite(size.height)
         and size.width >= ns.UI.MIN_WIDTH and size.width <= ns.UI.MAX_WIDTH
-        and size.height >= ns.UI.MIN_HEIGHT and size.height <= ns.UI.MAX_HEIGHT and not oldDefault then
+        and size.height >= ns.UI.MIN_HEIGHT and size.height <= ns.UI.MAX_HEIGHT and not oldDefault and not compactDefault then
         config.size = { width = size.width, height = size.height }
     end
     config.position = readPosition(saved.position)
@@ -52,6 +54,8 @@ local function applySelection(selected)
     ns.db.liveSelection = selected.runtime and { mapID = selected.mapID, questLineID = selected.questLineID } or nil
     ns.WoW.ClearOffers()
     ns.WoW.ResetWarnings()
+    ns.UI.ClearWarning()
+    ns.ScheduleWarningExpiry()
     if ns.UI.scroll then ns.UI.scroll:SetVerticalScroll(0) end
 end
 
@@ -102,6 +106,15 @@ function ns.UseTrackedQuest()
     end
 end
 
+-- The only gameplay action: explicitly observing a clicked member quest.
+function ns.TrackQuest(questID)
+    if not ns.initialized or not ns.LiveData.IsID(questID)
+        or not ns.Model.Contains(ns.chain, questID) then return end
+    local ok, status = ns.WoW.WatchQuest(questID)
+    if ok then ns.ScheduleRefresh()
+    else ns.Print(ns.L["WATCH_" .. status] or ns.L.WATCH_FAILED) end
+end
+
 function ns.Refresh()
     if not ns.initialized then return end
     ns.WoW.ReadQuestLines()
@@ -111,6 +124,7 @@ function ns.Refresh()
     ns.result = ns.Model.Evaluate(ns.chain, ns.snapshot)
     ns.UI.Render(ns.result)
     ns.UI.RenderSelector()
+    ns.UI.RenderWarning()
 end
 
 function ns.DiscoverZone(force)
@@ -121,14 +135,36 @@ function ns.DiscoverZone(force)
     if force or ns.WoW.questLines.currentMapID or previous then ns.ScheduleRefresh() end
 end
 
+local armTimer
+armTimer = function()
+    if not ns.initialized then return end
+    local due = ns.refreshDue
+    local expiry = ns.UI.warningExpires
+    if expiry and (not due or expiry < due) then due = expiry end
+    if ns.timer and ns.timerDue == due then return end
+    if ns.timer then ns.timer:Cancel(); ns.timer, ns.timerDue = nil, nil end
+    if not due then return end
+    ns.timerDue = due
+    ns.timer = C_Timer.NewTimer(math.max(0, due - GetTime()), function()
+        ns.timer, ns.timerDue = nil, nil
+        ns.UI.RenderWarning()
+        if ns.refreshDue and ns.refreshDue <= GetTime() + 0.001 then
+            ns.pending, ns.refreshDue = false, nil
+            ns.Refresh()
+            ns.WoW.WarnActivities()
+        end
+        armTimer()
+    end)
+end
+
+function ns.ScheduleWarningExpiry()
+    armTimer()
+end
+
 function ns.ScheduleRefresh()
     if ns.pending or not ns.initialized then return end
-    ns.pending = true
-    C_Timer.After(0.1, function()
-        ns.pending = false
-        ns.Refresh()
-        ns.WoW.WarnActivities()
-    end)
+    ns.pending, ns.refreshDue = true, GetTime() + 0.1
+    armTimer()
 end
 
 function ns.Select(id)
@@ -162,7 +198,7 @@ function ns.Slash(text)
         ns.Debug()
     elseif command == "reset" then
         ns.db = ns.ReadConfig(nil)
-        QuestStrangTrackerDB = ns.db
+        QuestreihenTrackerDB = ns.db
         ns.ClearSelection()
         ns.UI.Restore()
         ns.Minimap.Position()
@@ -183,18 +219,18 @@ events:RegisterEvent("ADDON_LOADED")
 events:SetScript("OnEvent", function(_, event, ...)
     if event == "ADDON_LOADED" then
         if (...) ~= addonName or ns.initialized then return end
-        ns.db = ns.ReadConfig(QuestStrangTrackerDB)
-        QuestStrangTrackerDB = ns.db
+        ns.db = ns.ReadConfig(QuestreihenTrackerDB)
+        QuestreihenTrackerDB = ns.db
         ns.chain = ns.LiveData.Empty()
         ns.initialized = true
         ns.UI.Create()
         ns.Minimap.Create()
-        SLASH_QUESTSTRANGTRACKER1 = "/qst"
-        SlashCmdList.QUESTSTRANGTRACKER = ns.Slash
+        SLASH_QUESTREIHENTRACKER1 = "/qrt"
+        SlashCmdList.QUESTREIHENTRACKER = ns.Slash
         for _, name in ipairs({ "PLAYER_LOGIN", "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "QUEST_REMOVED",
             "QUEST_TURNED_IN", "QUEST_DATA_LOAD_RESULT", "QUEST_DETAIL", "QUEST_FINISHED",
             "GOSSIP_SHOW", "GOSSIP_CLOSED", "QUESTLINE_UPDATE", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD",
-            "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_CHANGED", "TASK_PROGRESS_UPDATE" }) do
+            "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_CHANGED", "TASK_PROGRESS_UPDATE", "QUEST_POI_UPDATE" }) do
             events:RegisterEvent(name)
         end
         if ns.db.liveSelection then ns.chain = ns.WoW.RestoreQuestLine(ns.db.liveSelection) or ns.chain end

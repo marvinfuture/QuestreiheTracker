@@ -40,7 +40,7 @@ local function reset()
     Mock.mapInfos[mapID], Mock.questLinesByMap[mapID] = { name = "Selection map fixture" }, {}
     ns.chain, ns.db, ns.pending = ns.LiveData.Empty(), copy(saved.db), false
     ns.db.selectedChain, ns.db.liveSelection = "none", nil
-    QuestStrangTrackerDB = ns.db
+    QuestreihenTrackerDB = ns.db
     ns.WoW.questLines.maps, ns.WoW.questLines.currentMapID = {}, nil
     ns.WoW.requested, ns.WoW.failedRequests, ns.WoW.offers = {}, {}, {}
     ns.WoW.ResetWarnings()
@@ -152,7 +152,7 @@ test("clearing is idempotent and leaves only an empty saved selection", function
     selectLoaded("Idempotence fixture")
     ns.ClearSelection(); ns.ClearSelection(); ns.Refresh()
     assertEmpty()
-    local config = ns.ReadConfig(QuestStrangTrackerDB)
+    local config = ns.ReadConfig(QuestreihenTrackerDB)
     assert(config.selectedChain == "none" and config.liveSelection == nil)
     assert(Mock.warningCount == 0)
 end)
@@ -241,8 +241,52 @@ test("minimum-width header leaves both selection and removal buttons usable", fu
     ns.UI.frame:SetSize(ns.UI.MIN_WIDTH, ns.UI.MIN_HEIGHT)
     local selectWidth, clearWidth = ns.UI.select:GetWidth(), ns.UI.clearButton:GetWidth()
     assert(selectWidth > 100 and clearWidth >= 80 and selectWidth + clearWidth + 8 <= ns.UI.MIN_WIDTH - 32)
+    assert(ns.UI.trackedButton:GetWidth() == ns.UI.MIN_WIDTH - 32)
     assert(ns.UI.select.tooltip == ns.chain.name and ns.UI.clearButton:IsEnabled())
     clickClear(); assertEmpty()
+end)
+
+test("main tracked button resolves the current Blizzard navigation quest", function()
+    assert(not ns.UI.selector or not ns.UI.selector:IsShown())
+    Mock.questLineInfoByQuest[78743] = { questLineID = lineID,
+        questLineName = "Main tracked lookup fixture", questID = 78743, startMapID = mapID }
+    Mock.questLineQuests[lineID] = { 78743, 78744, 78745 }
+    Mock.isSuperTrackingQuest, Mock.superTrackedQuestID = true, 78743
+    Mock.highestPrioritySuperTrackingType = Enum.SuperTrackingType.Quest
+    local button = ns.UI.trackedButton
+    assert(button and button:IsShown() and button:IsEnabled())
+    button.scripts.OnClick(button, "LeftButton")
+    Mock.Flush()
+    assert(ns.chain.id == key and ns.db.liveSelection.questLineID == lineID)
+    assert(ns.UI.notice:GetText() == ns.L.BLIZZARD_NOTICE)
+    assert(ns.UI.frame:IsShown() and (not ns.UI.selector or not ns.UI.selector:IsShown()))
+end)
+
+test("main tracked button shows lookup failures without opening the selector", function()
+    local button = ns.UI.trackedButton
+    button.scripts.OnClick(button, "LeftButton")
+    assert(ns.questLookup.status == "NO_TRACKED" and ns.chain.empty)
+    assert(ns.UI.notice:GetText() == ns.L.LOOKUP_NO_TRACKED)
+    assert(not ns.UI.selector or not ns.UI.selector:IsShown())
+end)
+
+test("quest rows show progress without availability clutter", function()
+    selectLoaded("Progress label fixture")
+    Mock.active[78744] = true
+    Mock.completed[78745] = true
+    ns.Refresh()
+    local expected = { [78743] = ns.L.NOT_ACCEPTED, [78744] = ns.L.ACTIVE, [78745] = ns.L.COMPLETED }
+    local found = 0
+    for _, row in pairs(ns.UI.rows or {}) do
+        local id = rawget(row, "questID")
+        if row:IsShown() and id then
+            assert(row.subtext:GetText() == expected[id])
+            assert(not row.subtext:GetText():find(ns.L.UNKNOWN, 1, true))
+            assert(row.clickButtons[1] == "LeftButtonUp" and row.clickButtons[2] == "RightButtonUp")
+            found = found + 1
+        end
+    end
+    assert(found == 3)
 end)
 
 if ns.UI.selector then ns.UI.selector:Hide() end
@@ -255,6 +299,6 @@ ns.WoW.questLines.maps, ns.WoW.questLines.currentMapID = saved.maps, saved.curre
 ns.WoW.requested, ns.WoW.failedRequests = saved.requested, saved.failedRequests
 ns.WoW.offers, ns.WoW.warnings = saved.offers, saved.warnings
 ns.chain, ns.db, ns.pending = saved.chain, saved.db, false
-QuestStrangTrackerDB = ns.db
+QuestreihenTrackerDB = ns.db
 ns.UI.Restore(); ns.Refresh()
 print("Selection removal, runtime naming and header tests passed: " .. passed)

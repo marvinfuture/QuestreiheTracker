@@ -8,6 +8,7 @@ Mock = { frames = {}, timers = {}, completed = {}, active = {}, titles = {}, req
     log = {}, offers = {}, detailID = 78743, npc = true, combat = false, acceptCount = 0,
     setAbandonCount = 0, abandonCount = 0, mutationCount = 0, mutations = {},
     warningCount = 0, warnings = {}, messages = {}, watched = {}, worldWatched = {}, tasks = {}, taskInfo = {},
+    now = 0, watchAddCount = 0, watchAddCalls = {}, worldQuests = {}, questTasks = {}, questsOnMap = {},
     calls = 0, invalidIDCalls = 0, achievementDone = false, achievementMine = false, criteriaDone = 2 }
 local methods = {}
 local function widget(kind)
@@ -19,13 +20,15 @@ local function widget(kind)
     end })
 end
 for _, method in ipairs({ "SetFrameStrata", "SetClampedToScreen",
-    "SetBackdrop", "SetBackdropColor", "SetBackdropBorderColor", "SetFontObject", "SetJustifyH",
+    "SetBackdrop", "SetFontObject", "SetJustifyH", "SetJustifyV",
     "SetAutoFocus", "ClearFocus", "SetFocus", "HighlightText", "EnableMouse",
     "SetStatusBarTexture",
     "SetStatusBarColor", "SetMinMaxValues", "SetAllPoints", "SetColorTexture",
     "ClearAllPoints", "SetOwner" }) do
     methods[method] = function() end
 end
+function methods:SetBackdropColor(...) self.backdropColor = { ... } end
+function methods:SetBackdropBorderColor(...) self.backdropBorderColor = { ... } end
 function methods:SetMovable(value) self.movable = value end
 function methods:SetSize(width, height)
     self.width, self.height = width, height
@@ -141,15 +144,45 @@ end }
 UIErrorsFrame = { AddMessage = function(_, message)
     Mock.warningCount = Mock.warningCount + 1
     Mock.warnings[#Mock.warnings + 1] = message
-end }
-C_Timer = { After = function(_, fn) Mock.timers[#Mock.timers + 1] = fn end }
-function Mock.Flush()
+end,
+    GetTimeVisible = function() return Mock.errorTimeVisible or 2 end,
+    GetFadeDuration = function() return Mock.errorFadeDuration or 0.5 end,
+}
+function GetTime() return Mock.now end
+Constants = { QuestWatchConsts = { MAX_QUEST_WATCHES = 25 } }
+local function scheduleTimer(delay, fn)
+    assert(type(delay) == "number" and delay >= 0 and type(fn) == "function")
+    local timer = { due = Mock.now + delay, callback = fn, cancelled = false }
+    function timer:Cancel()
+        self.cancelled = true
+        for index = #Mock.timers, 1, -1 do
+            if Mock.timers[index] == self then table.remove(Mock.timers, index) end
+        end
+    end
+    function timer:IsCancelled() return self.cancelled end
+    Mock.timers[#Mock.timers + 1] = timer
+    return timer
+end
+C_Timer = { After = function(delay, fn) scheduleTimer(delay, fn) end, NewTimer = scheduleTimer }
+local function runTimers(target)
     local count = 0
     while #Mock.timers > 0 do
+        table.sort(Mock.timers, function(left, right) return left.due < right.due end)
+        local timer = Mock.timers[1]
+        if target and timer.due > target then break end
         count = count + 1
         assert(count < 100, "Repeated event timer loop")
-        local fn = table.remove(Mock.timers, 1); fn()
+        table.remove(Mock.timers, 1)
+        Mock.now = math.max(Mock.now, timer.due)
+        if not timer.cancelled then timer.callback(timer) end
     end
+end
+function Mock.Flush() runTimers() end
+function Mock.Advance(seconds)
+    assert(type(seconds) == "number" and seconds >= 0)
+    local target = Mock.now + seconds
+    runTimers(target)
+    Mock.now = target
 end
 local function realID(id)
     if not (type(id) == "number" and id > 0 and id < math.huge and id == math.floor(id)) then
@@ -165,6 +198,21 @@ C_QuestLog = {
     RequestLoadQuestByID = function(id) realID(id); Mock.requests[id] = (Mock.requests[id] or 0) + 1 end,
     GetNumQuestLogEntries = function() return #Mock.log, #Mock.log end,
     GetInfo = function(index) return Mock.log[index] end,
+    GetQuestsOnMap = function(mapID)
+        realID(mapID)
+        if Mock.failQuestsOnMap then error("Quests-on-map fixture failure") end
+        return Mock.questsOnMap[mapID] or {}
+    end,
+    IsWorldQuest = function(id)
+        realID(id)
+        if Mock.failQuestKindRead then error("Quest-kind fixture failure") end
+        return Mock.worldQuests[id] == true
+    end,
+    IsQuestTask = function(id)
+        realID(id)
+        if Mock.failQuestKindRead then error("Quest-kind fixture failure") end
+        return Mock.questTasks[id] == true
+    end,
     GetNumQuestWatches = function()
         if Mock.failWatchRead then error("Watch count fixture failure") end
         return #(Mock.watched or {})
@@ -282,7 +330,7 @@ for _, name in ipairs({ "CompleteQuest", "GetQuestReward", "ConfirmAcceptQuest",
     _G[name] = forbid(name)
 end
 for _, entry in ipairs({
-    { "C_QuestLog", { "AbandonQuest", "SetAbandonQuest", "SetSelectedQuest", "AddQuestWatch", "RemoveQuestWatch" } },
+    { "C_QuestLog", { "AbandonQuest", "SetAbandonQuest", "SetSelectedQuest", "RemoveQuestWatch" } },
     { "C_GossipInfo", { "SelectOption", "SelectAvailableQuest", "SelectActiveQuest" } },
     { "C_Container", { "DeleteCursorItem", "PickupContainerItem", "UseContainerItem", "SplitContainerItem" } },
     { "C_SuperTrack", { "SetSuperTrackedQuestID", "SetSuperTrackedUserWaypoint" } },
@@ -293,6 +341,19 @@ for _, entry in ipairs({
     local name, operations = entry[1], entry[2]
     _G[name] = _G[name] or {}
     for _, operation in ipairs(operations) do _G[name][operation] = forbid(name .. "." .. operation) end
+end
+C_QuestLog.AddQuestWatch = function(id)
+    realID(id)
+    Mock.watchAddCount = Mock.watchAddCount + 1
+    Mock.watchAddCalls[#Mock.watchAddCalls + 1] = id
+    if Mock.failWatchAdd then error("Quest-watch fixture failure") end
+    if Mock.refuseWatchAdd then return false end
+    assert(Mock.active[id] == true, "Only currently active quests may be watched")
+    assert(not Mock.worldQuests[id] and not Mock.questTasks[id], "Only regular quests may be watched")
+    assert(#Mock.watched < Constants.QuestWatchConsts.MAX_QUEST_WATCHES, "Watch limit was not checked")
+    for _, watchedID in ipairs(Mock.watched) do assert(watchedID ~= id, "Already watched quest was added twice") end
+    Mock.watched[#Mock.watched + 1] = id
+    return true
 end
 function GetBuildInfo() return "12.1.0", "69933", "2026", 120100 end
 function GetAchievementInfo(id)

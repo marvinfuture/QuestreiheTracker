@@ -7,7 +7,7 @@ local colors = {
 
 function UI.Restore()
     local size, position = ns.db.size, ns.db.position
-    UI.frame:SetSize(size and size.width or 440, size and size.height or 500)
+    UI.frame:SetSize(size and size.width or 360, size and size.height or 500)
     UI.frame:SetScale(ns.db.scale)
     UI.frame:ClearAllPoints()
     if position then UI.frame:SetPoint(position.point, UIParent, position.relativePoint, position.x, position.y)
@@ -34,6 +34,7 @@ function UI.Layout(width)
     local textWidth, contentWidth = width - 32, width - 60
     UI.title:SetWidth(width - 66)
     UI.select:SetWidth(textWidth - 92)
+    UI.trackedButton:SetWidth(textWidth)
     UI.bar:SetWidth(textWidth)
     UI.count:SetWidth(textWidth)
     UI.notice:SetWidth(textWidth)
@@ -51,7 +52,7 @@ end
 
 function UI.Create()
     if UI.frame then return end
-    local frame = UI.Panel("QuestStrangTrackerFrame", 440, 500)
+    local frame = UI.Panel("QuestreihenTrackerFrame", 360, 500)
     UI.frame = frame
     frame:SetFrameStrata("MEDIUM")
     frame:SetMovable(true)
@@ -73,7 +74,7 @@ function UI.Create()
         if UI.link then UI.link:Hide() end
         if UI.selector then UI.selector:Hide() end
     end)
-    if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = "QuestStrangTrackerFrame" end
+    if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = "QuestreihenTrackerFrame" end
     UI.title = UI.Text(frame, "large", 16, -15, 374)
     UI.title:SetText(L.TITLE)
     local close = UI.Button(frame, "X", 25, 400, -10, function() frame:Hide() end)
@@ -96,9 +97,17 @@ function UI.Create()
         GameTooltip:Show()
     end)
     UI.clearButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    UI.trackedButton = UI.Button(frame, L.LOOKUP_TRACKED, 328, 16, -74, ns.UseTrackedQuest)
+    UI.trackedButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
+        GameTooltip:SetText(L.LOOKUP_TRACKED)
+        GameTooltip:AddLine(L.LOOKUP_HINT, 0.85, 0.85, 0.85, true)
+        GameTooltip:Show()
+    end)
+    UI.trackedButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
     local bar = CreateFrame("StatusBar", nil, frame)
-    bar:SetSize(408, 16)
-    bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -79)
+    bar:SetSize(328, 16)
+    bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -106)
     bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
     bar:SetStatusBarColor(0.3, 0.7, 0.5)
     bar:SetMinMaxValues(0, 100)
@@ -109,13 +118,13 @@ function UI.Create()
     UI.percent:ClearAllPoints()
     UI.percent:SetPoint("CENTER", bar, "CENTER", 0, 0)
     UI.percent:SetJustifyH("CENTER")
-    UI.count = UI.Text(frame, nil, 16, -102, 408)
+    UI.count = UI.Text(frame, nil, 16, -129, 328)
     UI.count:SetHeight(20)
-    UI.notice = UI.Text(frame, nil, 16, -126, 408)
-    UI.notice:SetHeight(34)
+    UI.notice = UI.Text(frame, nil, 16, -153, 328)
+    UI.notice:SetHeight(56)
     UI.notice:SetTextColor(0.7, 0.7, 0.7)
     UI.scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    UI.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -168)
+    UI.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -213)
     UI.scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -36, 24)
     UI.content = CreateFrame("Frame", nil, UI.scroll)
     UI.content:SetSize(380, 1)
@@ -148,13 +157,61 @@ function UI.Create()
 end
 
 local function statusLabel(row)
-    local parts = {}
-    if row.progressStatus == "UNKNOWN" then parts[#parts + 1] = L.PROGRESS_UNKNOWN
-    else parts[#parts + 1] = L[row.progressStatus] end
-    if row.status == "AVAILABLE" then parts[#parts + 1] = L.AVAILABLE
-    elseif row.inferredNext then parts[#parts + 1] = L.INFERRED
-    elseif row.status == "UNKNOWN" then parts[#parts + 1] = L.UNKNOWN end
-    return table.concat(parts, " · ")
+    return row.progressStatus == "UNKNOWN" and L.PROGRESS_UNKNOWN or L[row.progressStatus]
+end
+
+-- Core schedules this deadline through the same timer used to coalesce game events.
+UI.WARNING_DURATION = 5
+
+function UI.WarningRemaining()
+    if not UI.warningExpires then return nil end
+    return math.max(0, UI.warningExpires - GetTime())
+end
+
+function UI.ClearWarning()
+    UI.warningExpires = nil
+    if UI.warning then UI.warning:Hide() end
+end
+
+function UI.RenderWarning()
+    if UI.warningExpires and UI.WarningRemaining() <= 0 then UI.ClearWarning() end
+end
+
+local function warningDuration()
+    local frame = UIErrorsFrame
+    local visible = frame and ns.WoW.Call(frame.GetTimeVisible, frame)
+    local fade = frame and ns.WoW.Call(frame.GetFadeDuration, frame)
+    if type(visible) == "number" and visible > 0 and visible < 60
+        and type(fade) == "number" and fade >= 0 and fade < 60 then
+        return 2 * (visible + fade)
+    end
+    return UI.WARNING_DURATION
+end
+
+function UI.ShowWarning(message)
+    if not UI.warning then
+        local warning = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+        warning:SetSize(500, 108)
+        warning:SetPoint("TOP", UIParent, "TOP", 0, -140)
+        warning:SetFrameStrata("DIALOG")
+        warning:SetClampedToScreen(true)
+        warning:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2 })
+        warning:SetBackdropColor(0.12, 0.035, 0.025, 0.94)
+        warning:SetBackdropBorderColor(1, 0.55, 0.15, 1)
+        local title = UI.Text(warning, "large", 16, -12, 468)
+        title:SetText(L.UNRELATED_WARNING_TITLE)
+        title:SetTextColor(1, 0.65, 0.2)
+        warning.message = UI.Text(warning, nil, 16, -38, 468)
+        warning.message:SetHeight(58)
+        warning.message:SetTextColor(1, 0.9, 0.75)
+        UI.warning = warning
+    end
+    UI.warning.message:SetText(message)
+    UI.warningDuration = warningDuration()
+    UI.warningExpires = GetTime() + UI.warningDuration
+    UI.warning:Show()
+    ns.ScheduleWarningExpiry()
 end
 
 function UI.Render(result)
@@ -169,6 +226,7 @@ function UI.Render(result)
     UI.count:SetText(empty and L.NO_SELECTION or (loading and L.BLIZZARD_LOADING
         or string.format(L.RUNTIME_COUNT, result.completed, result.total)))
     UI.notice:SetText(empty and L.EMPTY_SELECTION or L.BLIZZARD_NOTICE)
+    UI.RenderQuestLookup()
     for _, row in pairs(UI.rows or {}) do row:Hide() end
     local rowIndex, offset = 0, 0
     local function place(title, item)
@@ -176,6 +234,7 @@ function UI.Render(result)
         local row = UI.Row(UI.content, rowIndex)
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", UI.content, "TOPLEFT", 0, -offset)
+        row:SetHeight(item and 60 or 36)
         row:Show()
         row:EnableMouse(item ~= nil)
         row.icon:Hide()
@@ -193,9 +252,10 @@ function UI.Render(result)
             end
             local status = statusLabel(item)
             row.subtext:SetText(status)
-            row.tooltip = status .. "\n" .. L.LOOKUP_ID .. ": " .. item.questID
+            local detail = item.status == "AVAILABLE" and L.AVAILABLE or (item.inferredNext and L.INFERRED)
+            row.tooltip = status .. (detail and "\n" .. detail or "") .. "\n" .. L.LOOKUP_ID .. ": " .. item.questID
         end
-        offset = offset + (item and 54 or 28)
+        offset = offset + (item and 64 or 36)
     end
     if loading then
         place(L.BLIZZARD_LOADING)

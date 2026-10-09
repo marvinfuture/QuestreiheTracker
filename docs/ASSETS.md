@@ -1,10 +1,10 @@
 # Image assets
 
-## Questreihe Tracker logo
+## Questreihen Tracker logo
 
-- Master: `assets/queststrangtracker-logo.png` (1254 × 1254, RGBA PNG).
-- Runtime texture: `addon/QuestStrangTracker/Media/QuestStrangTrackerLogo.tga` (128 × 128, uncompressed type 2 true-color TGA, 32-bit RGBA).
-- WoW texture path: `Interface\\AddOns\\QuestStrangTracker\\Media\\QuestStrangTrackerLogo`.
+- Master: `assets/questreihentracker-logo.png` (1254 × 1254, RGBA PNG).
+- Runtime texture: `addon/QuestreihenTracker/Media/QuestreihenTrackerLogo.tga` (128 × 128, uncompressed type 2 true-color TGA, 32-bit RGBA).
+- WoW texture path: `Interface\\AddOns\\QuestreihenTracker\\Media\\QuestreihenTrackerLogo`.
 - Created with the built-in `image_gen.imagegen` tool in native tool mode on 2026-10-08, with `transparent_background=true` and no reference images. The prompt requested a 1024 × 1024 canvas; the tool returned a 1254 × 1254 PNG, preserved as the master.
 - The design is an original gold quest marker and linked route ending in a green completion check, inside a dark teal circular medallion. It represents questline progress rather than an Earthen unlock.
 - Pillow performed only a Lanczos downscale and a format export for the runtime texture. No generated image content was repainted. The exported TGA was reopened and checked for identical RGBA pixels, type 2 encoding, 128 × 128 dimensions, 32-bit depth, and preserved transparency.
@@ -17,7 +17,7 @@ The runtime logo is now displayed as a 20-pixel inset inside a 32-pixel native l
 
 ```text
 Use case: logo-brand
-Asset type: Original raster logo for a native World of Warcraft addon minimap button, QuestStrangTracker; it helps players efficiently finish questlines rather than unlock a race.
+Asset type: Original raster logo for a native World of Warcraft addon minimap button, QuestreihenTracker; it helps players efficiently finish questlines rather than unlock a race.
 Primary request: A clean compact fantasy quest route and completion emblem, suitable for a very small circular button.
 Scene/backdrop: A centered circular midnight teal medallion with a broad simple warm gold rim. Everything outside the circle must be genuinely transparent.
 Subject: One bold warm gold quest exclamation marker linked by a single broad curved route to three large round route nodes; the final node carries a clear green check mark to communicate completion. Make the main gold quest marker visually dominant and integrate the route naturally into one balanced simple symbol.

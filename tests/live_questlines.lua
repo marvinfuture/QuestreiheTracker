@@ -178,7 +178,7 @@ test("map candidates never create NPC availability", function()
     Mock.completed[78744], Mock.active[78744] = false, false
     ns.WoW.ClearOffers(); ns.Refresh()
     assert(ns.result.byID[78744].status == "UNKNOWN" and ns.result.byID[78744].inferredNext)
-    assert(questRow(78744).subtext:GetText():find(ns.L.INFERRED, 1, true))
+    assert(questRow(78744).subtext:GetText() == ns.L.NOT_ACCEPTED)
     Mock.offers = { { questID = 78744 } }
     event("GOSSIP_SHOW"); Mock.Flush()
     assert(ns.result.byID[78744].status == "AVAILABLE")
@@ -307,6 +307,168 @@ test("zone slash command and repeated events remain display-only without idle po
     ns.Select(liveKey)
     Mock.Flush()
     assert(ns.chain.id == liveKey)
+end)
+
+local function activeZoneFixture(fn)
+    Mock.Flush()
+    local fields = { "currentMapID", "mapInfos", "questLinesByMap", "questLineQuests", "lineRequests",
+        "log", "active", "completed", "questsOnMap", "questMapIDs", "questMapCalls", "questLineInfoByQuest", "questLineInfoByMap", "reverseCalls" }
+    local saved = { chain = ns.chain, db = ns.db, maps = ns.WoW.questLines.maps,
+        currentMapID = ns.WoW.questLines.currentMapID, enum = Enum,
+        requested = ns.WoW.requested, failedRequests = ns.WoW.failedRequests, failReverseLineRead = Mock.failReverseLineRead }
+    for _, key in ipairs(fields) do saved[key] = Mock[key]; Mock[key] = {} end
+    Mock.currentMapID = mapID
+    Mock.mapInfos[mapID] = { name = "Active zone test fixture" }
+    Mock.mapInfos[otherMapID] = { name = "Other zone test fixture" }
+    Mock.questLinesByMap[mapID] = {}
+    Mock.questLineQuests[lineID] = { 78743, 78744, 78745 }
+    Mock.log, Mock.active[78744] = { { questID = 78744 } }, true
+    ns.chain, ns.db = ns.LiveData.Empty(), ns.ReadConfig(nil)
+    ns.WoW.questLines.maps, ns.WoW.questLines.currentMapID = {}, nil
+    ns.WoW.requested, ns.WoW.failedRequests = {}, {}
+    local ok, message = pcall(fn)
+    Mock.Flush()
+    for _, key in ipairs(fields) do Mock[key] = saved[key] end
+    Mock.failReverseLineRead = saved.failReverseLineRead
+    ns.chain, ns.db, Enum = saved.chain, saved.db, saved.enum
+    ns.WoW.questLines.maps, ns.WoW.questLines.currentMapID = saved.maps, saved.currentMapID
+    ns.WoW.requested, ns.WoW.failedRequests = saved.requested, saved.failedRequests
+    ns.Refresh()
+    assert(ok, message)
+end
+
+test("accepted current-zone lines supplement incomplete available map candidates", function()
+    activeZoneFixture(function()
+        Mock.questLinesByMap[mapID] = { { questLineID = 5507, questLineName = "Available map fixture", questID = 78745 } }
+        Mock.questLineQuests[5507] = { 78745 }
+        Mock.questLineInfoByQuest[78744] = { questLineID = lineID,
+            questLineName = "Accepted filtered line fixture", questID = 78744, startMapID = mapID, isHidden = true }
+        ns.DiscoverZone(false); Mock.Flush()
+        local chains, status = zone()
+        assert(status == "READY" and #chains == 2)
+        local chain = assert(ns.WoW.GetQuestLine(liveKey))
+        assert(chain.name == "Accepted filtered line fixture" and chain.sourceAPI == "C_QuestLine.GetQuestLineInfo")
+        assert(chain.nameSourceAPI == "C_QuestLine.GetQuestLineInfo" and chain.suggestedQuestID == nil)
+        assert(Mock.reverseCalls[1].displayableOnly == false)
+        ns.Select(liveKey); Mock.Flush()
+        assert(ns.result.byID[78744].status == "ACTIVE")
+        assert(ns.result.byID[78743].status == "UNKNOWN" and not ns.result.byID[78743].inferredNext)
+        assert(#ns.result.next == 0 and Mock.lineRequests[mapID] == 1)
+        Mock.log, Mock.active[78744] = {}, false
+        event("QUEST_LOG_UPDATE"); Mock.Flush()
+        chains = zone()
+        assert(#chains == 1 and ns.chain.id == liveKey, "Removing an active quest must retain the user's selected story")
+    end)
+end)
+
+test("active zone associations validate membership and positive IDs before game calls", function()
+    activeZoneFixture(function()
+        Mock.log = { { isHeader = true, questID = -101 }, { questID = -101 },
+            { questID = 78744 }, { questID = 78744 }, { questID = 78743 } }
+        Mock.questLineInfoByQuest[78744] = { questLineID = lineID, questLineName = "Rejected membership fixture", startMapID = mapID }
+        Mock.questLineQuests[lineID] = { 78743, 78745 }
+        local invalid = Mock.invalidIDCalls
+        ns.DiscoverZone(false); Mock.Flush()
+        local chains = zone()
+        assert(#chains == 0 and ns.WoW.GetQuestLine(liveKey) == nil)
+        assert(#Mock.reverseCalls == 1 and Mock.invalidIDCalls == invalid)
+        Mock.questLineInfoByQuest[78744].questLineID = -101
+        event("QUEST_LOG_UPDATE"); Mock.Flush()
+        assert(#zone() == 0 and Mock.invalidIDCalls == invalid)
+        Mock.questLineInfoByQuest[78744].questLineID = lineID
+        Mock.questLineQuests[lineID] = { 78743, -101, 78744 }
+        event("QUESTLINE_UPDATE", false); Mock.Flush()
+        assert(#zone() == 0 and Mock.invalidIDCalls == invalid)
+    end)
+end)
+
+test("accepted map POIs recover a line omitted by collapsed quest-log headers", function()
+    activeZoneFixture(function()
+        Mock.log = { { isHeader = true, isCollapsed = true } }
+        Mock.questsOnMap[mapID] = { { questID = 78744 }, { questID = 78744 },
+            { questID = -101 }, { questID = 78743 } }
+        Mock.questMapIDs[78744] = mapID
+        Mock.questLineInfoByQuest[78744] = { questLineID = lineID, questLineName = "Collapsed header line fixture" }
+        ns.DiscoverZone(false); Mock.Flush()
+        assert(#zone() == 1 and ns.WoW.GetQuestLine(liveKey))
+        assert(#Mock.reverseCalls == 1, "Repeated POIs and non-accepted map quests must not create duplicate reads")
+        Mock.questLineInfoByQuest[78744].startMapID, Mock.questMapIDs[78744] = otherMapID, otherMapID
+        event("QUEST_LOG_UPDATE"); Mock.Flush()
+        assert(#zone() == 0, "A POI alone must not override an unrelated start/destination zone")
+        Mock.questLineInfoByQuest[78744].startMapID, Mock.questMapIDs[78744] = mapID, mapID
+        local api = C_QuestLog.GetNumQuestLogEntries
+        C_QuestLog.GetNumQuestLogEntries = nil
+        event("QUEST_LOG_UPDATE"); Mock.Flush()
+        C_QuestLog.GetNumQuestLogEntries = api
+        assert(#zone() == 1, "Map-based accepted membership must also work without log enumeration")
+    end)
+end)
+
+test("current-zone supplements normalize submaps and ignore unrelated log quests", function()
+    activeZoneFixture(function()
+        Enum = { UIMapType = { Zone = 3, Micro = 5, Continent = 2 } }
+        Mock.mapInfos[mapID].mapType = Enum.UIMapType.Zone
+        Mock.mapInfos[otherMapID] = { name = "Submap test fixture", mapType = Enum.UIMapType.Micro, parentMapID = mapID }
+        Mock.questLineInfoByQuest[78744] = { questLineID = lineID,
+            questLineName = "Submap start line fixture", startMapID = otherMapID }
+        ns.DiscoverZone(false); Mock.Flush()
+        assert(#zone() == 1 and ns.WoW.GetQuestLine(liveKey))
+        Mock.mapInfos[otherMapID] = { name = "Unrelated zone test fixture", mapType = Enum.UIMapType.Zone }
+        Mock.questMapIDs[78744] = otherMapID
+        event("QUEST_LOG_UPDATE"); Mock.Flush()
+        assert(#zone() == 0, "An accepted quest elsewhere must not appear merely because it is in the log")
+        Mock.questLineInfoByQuest[78744].startMapID = nil
+        Mock.questMapIDs[78744] = mapID
+        event("QUEST_LOG_UPDATE"); Mock.Flush()
+        assert(#zone() == 1)
+        local reply = Mock.questMapCalls[#Mock.questMapCalls]
+        assert(reply.questID == 78744 and reply.ignoreWaypoints == true)
+        assert(Mock.lineRequests[otherMapID] == nil, "Zone supplementation must not request unrelated maps")
+    end)
+end)
+
+test("map-specific active association retries through existing events without idle requests", function()
+    activeZoneFixture(function()
+        Mock.questMapIDs[78744] = mapID
+        Mock.questLineInfoByMap[mapID] = { [78744] = { questLineID = lineID,
+            questLineName = "Map-specific accepted line fixture", startMapID = mapID } }
+        Mock.questLineQuests[lineID] = nil
+        ns.DiscoverZone(false); Mock.Flush()
+        assert(#zone() == 0 and ns.WoW.GetQuestLine(liveKey) == nil)
+        Mock.questLineQuests[lineID] = { 78743, 78744, 78745 }
+        for index = 1, 8 do event("QUESTLINE_UPDATE", false); event("QUEST_LOG_UPDATE") end
+        assert(#Mock.timers == 1)
+        Mock.Flush()
+        assert(#zone() == 1 and Mock.lineRequests[mapID] == 1 and #Mock.timers == 0)
+        Mock.questLineQuests[lineID] = {}
+        event("QUESTLINE_UPDATE", false); Mock.Flush()
+        assert(#zone() == 1, "A transient empty membership cache must preserve verified active membership")
+        Mock.failReverseLineRead = true
+        event("QUESTLINE_UPDATE", false); Mock.Flush()
+        assert(#zone() == 0 and Mock.lineRequests[mapID] == 1 and #Mock.timers == 0)
+        Mock.failReverseLineRead = nil
+        for _, frame in ipairs(Mock.frames) do assert(frame.scripts.OnUpdate == nil) end
+    end)
+end)
+
+test("failed map reads preserve prior candidates and still discover validated active lines", function()
+    activeZoneFixture(function()
+        Mock.questLinesByMap[mapID] = { { questLineID = 5507, questLineName = "Previous map fixture", questID = 78745 } }
+        Mock.questLineQuests[5507] = { 78745 }
+        ns.DiscoverZone(false); Mock.Flush()
+        assert(#zone() == 1)
+        Mock.questLinesByMap[mapID] = nil
+        Mock.questLineInfoByQuest[78744] = { questLineID = lineID,
+            questLineName = "Independent active line fixture", startMapID = mapID }
+        event("QUEST_LOG_UPDATE"); Mock.Flush()
+        local chains, status = zone()
+        assert(status == "ERROR" and #chains == 2 and ns.WoW.GetQuestLine(liveKey))
+        assert(Mock.lineRequests[mapID] == 1 and #Mock.timers == 0)
+        Mock.questLinesByMap[mapID] = {}
+        event("QUESTLINE_UPDATE", false); Mock.Flush()
+        chains, status = zone()
+        assert(status == "READY" and #chains == 1)
+    end)
 end)
 
 print("Runtime quest-line tests passed: " .. passed)

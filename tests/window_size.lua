@@ -17,8 +17,8 @@ local function storedSize(width, height)
 end
 
 test("window preference validation keeps only finite supported dimensions", function()
-    assert(ns.ReadConfig(nil).schemaVersion == 5)
-    for _, size in ipairs({ { width = 360, height = 300 }, { width = 1400, height = 1200 },
+    assert(ns.ReadConfig(nil).schemaVersion == 6)
+    for _, size in ipairs({ { width = 320, height = 300 }, { width = 1400, height = 1200 },
         { width = 830.5, height = 875.25, foreign = true } }) do
         local config = ns.ReadConfig({ size = size })
         assert(config.size.width == size.width and config.size.height == size.height)
@@ -28,12 +28,22 @@ test("window preference validation keeps only finite supported dimensions", func
     end
     for _, size in ipairs({ {}, { width = 550 }, { height = 750 },
         { width = "550", height = 750 }, { width = 550, height = "750" },
-        { width = 359, height = 750 }, { width = 1401, height = 750 },
+        { width = 319, height = 750 }, { width = 1401, height = 750 },
         { width = 550, height = 299 }, { width = 550, height = 1201 },
         { width = 0 / 0, height = 750 }, { width = 550, height = 0 / 0 },
         { width = math.huge, height = 750 }, { width = 550, height = -math.huge },
         "550x750", false }) do
         assert(ns.ReadConfig({ size = size }).size == nil)
+    end
+end)
+
+test("old default width adopts the compact layout while explicit custom sizes survive", function()
+    assert(ns.ReadConfig({ schemaVersion = 5, size = { width = 440, height = 500 } }).size == nil)
+    assert(ns.ReadConfig({ size = { width = 440, height = 500 } }).size == nil)
+    for _, saved in ipairs({ { schemaVersion = 6, size = { width = 440, height = 500 } },
+        { schemaVersion = 5, size = { width = 820, height = 930 } } }) do
+        local config = ns.ReadConfig(saved)
+        assert(config.size.width == saved.size.width and config.size.height == saved.size.height)
     end
 end)
 
@@ -44,7 +54,7 @@ test("tracker has a native resize handle and explicit bounds", function()
     assert(type(handle.scripts.OnMouseDown) == "function")
     assert(type(handle.scripts.OnMouseUp) == "function")
     local bounds = frame.resizeBounds
-    assert(bounds[1] == 360 and bounds[2] == 300 and bounds[3] == 1400 and bounds[4] == 1200)
+    assert(bounds[1] == 320 and bounds[2] == 300 and bounds[3] == 1400 and bounds[4] == 1200)
     assert(frame.scripts.OnUpdate == nil and handle.scripts.OnUpdate == nil)
 end)
 
@@ -52,7 +62,7 @@ test("resizing updates rows and persists dimensions and anchor only on release",
     local frame, handle = ns.UI.frame, ns.UI.resizeHandle
     ns.Slash("reset")
     frame:Show()
-    assertGeometry(440, 500, "CENTER", "CENTER", 0, 0)
+    assertGeometry(360, 500, "CENTER", "CENTER", 0, 0)
     handle.scripts.OnMouseDown(handle, "RightButton")
     assert(not ns.UI.resizing and not rawget(frame, "sizing"))
     handle.scripts.OnMouseDown(handle, "LeftButton")
@@ -91,7 +101,7 @@ test("dragging records the anchor and reopening restores the chosen geometry", f
     local saved = ns.ReadConfig(ns.db)
     frame:SetPoint("CENTER")
     frame:SetSize(440, 500)
-    ns.db, QuestStrangTrackerDB = saved, saved
+    ns.db, QuestreihenTrackerDB = saved, saved
     ns.UI.Restore()
     assertGeometry(820, 910, "BOTTOMRIGHT", "BOTTOMRIGHT", -160, 110)
 end)
@@ -120,9 +130,9 @@ end)
 
 test("restoration handles bounds and keeps scale separate from window size", function()
     local frame = ns.UI.frame
-    for _, size in ipairs({ { width = 360, height = 300 }, { width = 1400, height = 1200 } }) do
+    for _, size in ipairs({ { width = 320, height = 300 }, { width = 1400, height = 1200 } }) do
         ns.db = ns.ReadConfig({ size = size, scale = 1.1 })
-        QuestStrangTrackerDB = ns.db
+        QuestreihenTrackerDB = ns.db
         ns.UI.Restore()
         assertGeometry(size.width, size.height, "CENTER", "CENTER", 0, 0)
         assert(frame.scale == 1)
@@ -130,7 +140,7 @@ test("restoration handles bounds and keeps scale separate from window size", fun
     end
     ns.Slash("reset")
     assert(ns.db.size == nil and ns.db.position == nil and ns.db.scale == 1)
-    assertGeometry(440, 500, "CENTER", "CENTER", 0, 0)
+    assertGeometry(360, 500, "CENTER", "CENTER", 0, 0)
     frame:Hide()
     assert(Mock.mutationCount == 0, table.concat(Mock.mutations, ", "))
 end)

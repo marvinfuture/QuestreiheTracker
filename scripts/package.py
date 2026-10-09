@@ -5,8 +5,8 @@ import re
 import zipfile
 
 root = Path(__file__).resolve().parents[1]
-addon = root / "addon" / "QuestStrangTracker"
-toc_path = addon / "QuestStrangTracker.toc"
+addon = root / "addon" / "QuestreihenTracker"
+toc_path = addon / "QuestreihenTracker.toc"
 
 def build(tag=None):
     toc = toc_path.read_text(encoding="utf-8")
@@ -28,20 +28,20 @@ def build(tag=None):
             raise ValueError(f"Invalid or missing TOC file: {name}")
     if set(listed) != {path.name for path in addon.glob("*.lua")}:
         raise ValueError("Lua files and TOC differ")
-    output = root / "outputs" / f"QuestStrangTracker-v{version}.zip"
+    output = root / "outputs" / f"QuestreihenTracker-v{version}.zip"
     output.parent.mkdir(exist_ok=True)
     entries = [(path.relative_to(addon).as_posix(), path.read_bytes())
                for path in sorted(addon.rglob("*")) if path.is_file()]
     entries.append(("LICENSE", (root / "LICENSE").read_bytes()))
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for name, data in entries:
-            info = zipfile.ZipInfo("QuestStrangTracker/" + name, date_time=(2026, 10, 8, 0, 0, 0))
+            info = zipfile.ZipInfo("QuestreihenTracker/" + name, date_time=(2026, 10, 8, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
             archive.writestr(info, data)
     with zipfile.ZipFile(output) as archive:
         assert archive.testzip() is None
-        assert archive.namelist() == ["QuestStrangTracker/" + name for name, _ in entries]
+        assert archive.namelist() == ["QuestreihenTracker/" + name for name, _ in entries]
         assert not any(".tools" in name or name.startswith("/") for name in archive.namelist())
     print(f"Built {output.name}: {len(entries)} files, {output.stat().st_size} bytes")
     return output

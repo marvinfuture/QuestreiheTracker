@@ -15,9 +15,9 @@ assert lua.eval("_VERSION") == "Lua 5.1"
 lua.execute((root / "tests" / "wow_stubs.lua").read_text(encoding="utf-8"))
 baseline = set(lua.globals().keys())
 namespace = lua.table()
-loader = lua.eval("function(source, name, ns) local fn, err=loadstring(source, '@'..name); assert(fn,err); fn('QuestStrangTracker', ns) end")
-addon = root / "addon" / "QuestStrangTracker"
-toc = addon / "QuestStrangTracker.toc"
+loader = lua.eval("function(source, name, ns) local fn, err=loadstring(source, '@'..name); assert(fn,err); fn('QuestreihenTracker', ns) end")
+addon = root / "addon" / "QuestreihenTracker"
+toc = addon / "QuestreihenTracker.toc"
 listed = [line.strip() for line in toc.read_text().splitlines()
           if line.strip() and not line.startswith("#")]
 assert listed and len(listed) == len(set(listed)), "Invalid TOC file list"
@@ -30,21 +30,21 @@ print(f"Display-only static API audit: {audit['files']} files; {len(audit['api_m
 for name in listed:
     loader((addon / name).read_text(encoding="utf-8"), name, namespace)
 
-# Technical paths/namespaces keep their install identity. User-visible locale
+# Technical paths/namespaces use the requested install identity. User-visible locale
 # strings consistently use the user's requested terminology.
 for key, value in namespace.L.items():
-    assert not re.search(r"queststrang|questlinien?|\bstrang(?:es|e)?\b", value, re.IGNORECASE), (
+    assert not re.search(r"quest(?:strang|linien?)|\bstrang(?:es|e)?\b", value, re.IGNORECASE), (
         f"Old user-visible terminology in Locale.lua: {key}")
 toc_version = next(line.removeprefix("## Version:").strip()
                    for line in toc.read_text().splitlines() if line.startswith("## Version:"))
 assert namespace.version == toc_version, "TOC and Core versions differ"
-namespace.eventFrame.scripts.OnEvent(namespace.eventFrame, "ADDON_LOADED", "QuestStrangTracker")
+namespace.eventFrame.scripts.OnEvent(namespace.eventFrame, "ADDON_LOADED", "QuestreihenTracker")
 assert namespace.initialized, "Addon initialization failed"
 new_globals = set(lua.globals().keys()) - baseline
-allowed = {"QuestStrangTrackerDB", "SLASH_QUESTSTRANGTRACKER1", "QuestStrangTrackerFrame"}
+allowed = {"QuestreihenTrackerDB", "SLASH_QUESTREIHENTRACKER1", "QuestreihenTrackerFrame"}
 assert new_globals <= allowed, f"Unexpected globals: {new_globals - allowed}"
 texture = namespace.Minimap.button.icon.GetTexture(namespace.Minimap.button.icon)
-prefix = "Interface\\AddOns\\QuestStrangTracker\\"
+prefix = "Interface\\AddOns\\QuestreihenTracker\\"
 assert texture.startswith(prefix), "Minimap logo must reference the bundled addon asset"
 logo = addon / Path(texture[len(prefix):].replace("\\", "/") + ".tga")
 image = logo.read_bytes()
@@ -63,6 +63,7 @@ lua.execute((root / "tests" / "display_only.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "quest_lookup.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "activity_warnings.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "selection_controls.lua").read_text(encoding="utf-8"))
+lua.execute((root / "tests" / "warning_banner.lua").read_text(encoding="utf-8"))
 assert lua.globals().Mock.mutationCount == 0, "A game mutation API was attempted during tests"
 assert lua.globals().Mock.invalidIDCalls == 0, "An invalid ID was passed to a game API"
 
@@ -71,14 +72,14 @@ startup_lua = LuaRuntime(unpack_returned_tuples=True)
 startup_lua.execute((root / "tests" / "wow_stubs.lua").read_text(encoding="utf-8"))
 startup_baseline = set(startup_lua.globals().keys())
 startup_namespace = startup_lua.table()
-startup_loader = startup_lua.eval("function(source, name, ns) local fn, err=loadstring(source, '@'..name); assert(fn,err); fn('QuestStrangTracker', ns) end")
+startup_loader = startup_lua.eval("function(source, name, ns) local fn, err=loadstring(source, '@'..name); assert(fn,err); fn('QuestreihenTracker', ns) end")
 for name in listed:
     startup_loader((addon / name).read_text(encoding="utf-8"), name, startup_namespace)
 startup_lua.globals().TEST_NS = startup_namespace
 startup_lua.execute("""
 local ns = TEST_NS
 local key = "blizzard:2248:5506"
-QuestStrangTrackerDB = { selectedChain = key,
+QuestreihenTrackerDB = { selectedChain = key,
     liveSelection = { mapID = 2248, questLineID = 5506, name = "Discarded saved fixture name" },
     size = { width = 820, height = 930 },
     minimapAngle = 135,
@@ -96,12 +97,12 @@ Mock.onLineRequest = function(id)
         "Quest-line events must be registered before restoration requests")
     ns.eventFrame.scripts.OnEvent(ns.eventFrame, "QUESTLINE_UPDATE", false)
 end
-ns.eventFrame.scripts.OnEvent(ns.eventFrame, "ADDON_LOADED", "QuestStrangTracker")
+ns.eventFrame.scripts.OnEvent(ns.eventFrame, "ADDON_LOADED", "QuestreihenTracker")
 Mock.onLineRequest = nil
 assert(ns.initialized and ns.chain.id == key and ns.chain.runtime and ns.chain.loading)
 assert(Mock.lineRequests[2248] == 1 and ns.result.total == 0 and not ns.result.done)
-assert(QuestStrangTrackerDB.liveSelection.name == nil and QuestStrangTrackerDB.completed == nil)
-assert(QuestStrangTrackerDB.titles == nil and ns.result.completed == 0)
+assert(QuestreihenTrackerDB.liveSelection.name == nil and QuestreihenTrackerDB.completed == nil)
+assert(QuestreihenTrackerDB.titles == nil and ns.result.completed == 0)
 assert(ns.db.panelPositions.options == nil and ns.UI.Options == nil)
 assert(ns.UI.frame:GetWidth() == 820 and ns.UI.frame:GetHeight() == 930)
 local point, _, relativePoint, x, y = ns.UI.frame:GetPoint()
@@ -151,11 +152,11 @@ cleared_lua = LuaRuntime(unpack_returned_tuples=True)
 cleared_lua.execute((root / "tests" / "wow_stubs.lua").read_text(encoding="utf-8"))
 cleared_namespace = cleared_lua.table()
 cleared_loader = cleared_lua.eval(
-    "function(source, name, ns) local fn, err=loadstring(source, '@'..name); assert(fn,err); fn('QuestStrangTracker', ns) end")
+    "function(source, name, ns) local fn, err=loadstring(source, '@'..name); assert(fn,err); fn('QuestreihenTracker', ns) end")
 for name in listed:
     cleared_loader((addon / name).read_text(encoding="utf-8"), name, cleared_namespace)
 cleared_lua.globals().TEST_NS = cleared_namespace
-cleared_lua.globals().QuestStrangTrackerDB = cleared_lua.table_from({
+cleared_lua.globals().QuestreihenTrackerDB = cleared_lua.table_from({
     "selectedChain": startup_namespace.db.selectedChain,
     "minimapAngle": startup_namespace.db.minimapAngle,
     "size": cleared_lua.table_from({"width": startup_namespace.db.size.width,
@@ -170,7 +171,7 @@ Mock.currentMapID = 2248
 Mock.mapInfos[2248] = { name = "Reloaded map fixture" }
 Mock.questLinesByMap[2248] = { { questLineID = 5506, questLineName = "Reloaded line fixture" } }
 Mock.questLineQuests[5506] = { 78743, 78744, 78745 }
-ns.eventFrame.scripts.OnEvent(ns.eventFrame, "ADDON_LOADED", "QuestStrangTracker")
+ns.eventFrame.scripts.OnEvent(ns.eventFrame, "ADDON_LOADED", "QuestreihenTracker")
 assert(ns.chain.empty and ns.db.selectedChain == "none" and ns.db.liveSelection == nil)
 assert(ns.UI.frame:GetWidth() == 820 and ns.UI.frame:GetHeight() == 930)
 assert(ns.db.minimapAngle == 135 and ns.db.position.x == 42 and ns.db.position.y == -28)
@@ -189,22 +190,22 @@ unsupported_lua.execute((root / "tests" / "wow_stubs.lua").read_text(encoding="u
 unsupported_lua.execute("""
 C_QuestLine, C_QuestLog, C_SuperTrack, C_Map, C_GossipInfo = nil, nil, nil, nil, nil
 GetQuestUiMapID, GetTasksTable, GetTaskInfo = nil, nil, nil
-QuestStrangTrackerDB = { schemaVersion = 4, selectedChain = "mourning-rise", warnUnrelated = false,
+QuestreihenTrackerDB = { schemaVersion = 4, selectedChain = "mourning-rise", warnUnrelated = false,
     autoAccept = true, autoAbandon = true, titles = { [78743] = "Discarded title" },
     completed = { [78743] = true } }
 """)
 unsupported_namespace = unsupported_lua.table()
 unsupported_loader = unsupported_lua.eval(
-    "function(source, name, ns) local fn, err=loadstring(source, '@'..name); assert(fn,err); fn('QuestStrangTracker', ns) end")
+    "function(source, name, ns) local fn, err=loadstring(source, '@'..name); assert(fn,err); fn('QuestreihenTracker', ns) end")
 for name in listed:
     unsupported_loader((addon / name).read_text(encoding="utf-8"), name, unsupported_namespace)
 unsupported_lua.globals().TEST_NS = unsupported_namespace
 unsupported_lua.execute("""
 local ns = TEST_NS
-ns.eventFrame.scripts.OnEvent(ns.eventFrame, "ADDON_LOADED", "QuestStrangTracker")
+ns.eventFrame.scripts.OnEvent(ns.eventFrame, "ADDON_LOADED", "QuestreihenTracker")
 assert(ns.initialized and ns.chain.empty and ns.chain.id == "none")
 assert(ns.result.total == 0 and ns.result.completed == 0 and not ns.result.done)
-assert(ns.db.selectedChain == "none" and ns.db.liveSelection == nil and ns.db.schemaVersion == 5)
+assert(ns.db.selectedChain == "none" and ns.db.liveSelection == nil and ns.db.schemaVersion == 6)
 assert(ns.db.completed == nil and ns.db.titles == nil and ns.db.warnUnrelated == nil)
 assert(ns.db.autoAccept == nil and ns.db.autoAbandon == nil)
 ns.Slash("zone"); Mock.Flush()

@@ -67,6 +67,38 @@ function WoW.ClearOffers()
     WoW.offers = {}
 end
 
+function WoW.WatchQuest(questID)
+    -- Only an explicit quest-row click calls this. A repeated click never toggles
+    -- the watch off, and no navigation or quest-log selection is changed here.
+    if not ns.LiveData.IsID(questID) then return false, "INVALID_ID" end
+    -- Current acceptance is authoritative, including a new iteration of a
+    -- repeatable quest that has a historical completed flag.
+    local active = WoW.Call(C_QuestLog and C_QuestLog.IsOnQuest, questID)
+    if active == false then return false, "NOT_ACTIVE" end
+    if active ~= true then return false, "UNAVAILABLE" end
+    local world = WoW.Call(C_QuestLog and C_QuestLog.IsWorldQuest, questID)
+    local task = WoW.Call(C_QuestLog and C_QuestLog.IsQuestTask, questID)
+    if world == true or task == true then return false, "NOT_REGULAR" end
+    if world ~= false or task ~= false then return false, "UNAVAILABLE" end
+    local count = WoW.Call(C_QuestLog and C_QuestLog.GetNumQuestWatches)
+    if type(count) ~= "number" or count < 0 or count > 1000 or count ~= math.floor(count) then
+        return false, "UNAVAILABLE"
+    end
+    for index = 1, count do
+        local id = WoW.Call(C_QuestLog and C_QuestLog.GetQuestIDForQuestWatchIndex, index)
+        if not ns.LiveData.IsID(id) then return false, "UNAVAILABLE" end
+        if id == questID then return true, "ALREADY_WATCHED" end
+    end
+    local limit = Constants and Constants.QuestWatchConsts and Constants.QuestWatchConsts.MAX_QUEST_WATCHES
+    if not ns.LiveData.IsID(limit) then return false, "UNAVAILABLE" end
+    if count >= limit then return false, "LIMIT" end
+    -- Retail API returns whether the quest was watched. Do not claim success
+    -- when the API is missing, throws, or refuses the watch.
+    local ok, wasWatched = pcall(function() return C_QuestLog.AddQuestWatch(questID) end)
+    if not ok or wasWatched ~= true then return false, "FAILED" end
+    return true, "WATCHED"
+end
+
 local function readWatches(previous)
     previous = previous or {}
     local watched, lists = {}, {}
@@ -189,6 +221,7 @@ function WoW.WarnActivities()
             local title = taskTitles[id] or WoW.Title({ questID = id })
             local message = string.format(ns.L.UNRELATED_WARNING, title, id, ns.chain.name)
             ns.Print(message)
+            if ns.UI and ns.UI.ShowWarning then ns.UI.ShowWarning(message) end
             if UIErrorsFrame then UIErrorsFrame:AddMessage(message, 1, 0.65, 0.2) end
         end
     end

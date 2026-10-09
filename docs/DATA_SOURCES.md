@@ -22,6 +22,18 @@ Additional live Blizzard exports were reviewed 2026-10-09; live links identify t
 
 Only documented facts/API semantics are used. No other addon's implementation, library or UI is copied.
 
+## Active zone coverage and explicit quest watches in 0.4.0
+
+Reviewed on 2026-10-09. [Blizzard QuestLog documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/QuestLogDocumentation.lua) supplies `GetNumQuestLogEntries`, `GetInfo`, and `GetQuestsOnMap` candidates. Only a positive quest ID currently accepted by the character can supplement zone choices. Map POIs also cover quests absent from visible log rows.
+
+The [quest-line contract](https://github.com/Gethe/wow-ui-source/blob/09b9db7948abc9b9648dedaab51eb0cf3ee67b31/Interface/AddOns/Blizzard_APIDocumentationGenerated/QuestLineInfoDocumentation.lua) supplies `GetQuestLineInfo(questID, mapID, false)`, `startMapID` and exact `GetQuestLineQuests` membership. A candidate is admitted only when the queried accepted quest occurs in that supplied list and the start or destination map normalizes to the current zone. Its source API is `C_QuestLine.GetQuestLineInfo`; no map suggestion or NPC offer is inferred. Existing source URLs remain attached to runtime records. [Blizzard QuestMapFrame](https://github.com/Gethe/wow-ui-source/blob/09b9db7948abc9b9648dedaab51eb0cf3ee67b31/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/QuestMapFrame.lua) documents the destination-versus-waypoint use of `GetQuestUiMapID(questID, true)`. Data/POI/log events retry reads through the existing timer, without a global scan or quest database.
+
+The same [QuestLog documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/QuestLogDocumentation.lua) defines `AddQuestWatch(questID)` returning `wasWatched`, and regular/world/task/watch getters. [Blizzard's track-quest menu](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/QuestMapFrame.lua) checks `Constants.QuestWatchConsts.MAX_QUEST_WATCHES`. The addon uses those semantics only after an explicit row left click. It does not call world-watch, watch-removal or navigation setters. A historical completed flag alone does not reject a currently accepted repeatable iteration.
+
+[Blizzard timer documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/UITimerDocumentation.lua) supplies `C_Timer.NewTimer`. One cancellable timer serves both refresh and banner-expiry deadlines. The banner reads the native frame's visible/fade duration when available and doubles their sum; five seconds is an addon fallback when those reads fail, not a claimed client default.
+
+The user's reported Trauerhöhe omission is client evidence of an incomplete chooser, not a new curated membership fact. The coverage change handles the filtered-active-line case; it does not establish a complete catalogue or confirm the exact client's response. See the client checklist for the pending retest.
+
 ## Uncertainty boundaries
 
 A returned list establishes membership and display order, not a complete prerequisite graph, optionality or global catalogue. Nodes mark requirements and optionality unknown. No dependency edges, route coordinates or mandatory classifications are created. Account-completed map metadata does not establish this character's completion.
