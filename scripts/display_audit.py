@@ -18,6 +18,7 @@ API_MEMBERS = {
     "C_QuestLine.RequestQuestLinesForMap", "C_QuestLine.GetAvailableQuestLines",
     "C_QuestLine.GetQuestLineQuests", "C_Map.GetBestMapForUnit",
     "C_QuestLine.GetQuestLineInfo", "C_SuperTrack.GetSuperTrackedQuestID",
+    "C_SuperTrack.SetSuperTrackedQuestID",
     "C_SuperTrack.IsSuperTrackingQuest", "C_SuperTrack.GetHighestPrioritySuperTrackingType",
     "C_Map.GetMapInfo", "C_GossipInfo.GetAvailableQuests", "C_Timer.After", "C_Timer.NewTimer",
 }
@@ -157,7 +158,7 @@ def _audit_source(source, name):
     locals_ = _local_identifiers(tokens)
     members, globals_ = set(), set()
     watch_lines = set()
-    # This sole opt-in mutation must stay a direct call inside the adapter's
+    # Both opt-in mutations must stay direct calls inside the adapter's
     # reviewed entry point. Keep all aliases and every other mutation forbidden.
     watch_function = re.search(r"^function WoW\.WatchQuest\(questID\)\r?\n(.*?)^end\s*$",
                                source, re.MULTILINE | re.DOTALL)
@@ -165,7 +166,8 @@ def _audit_source(source, name):
         first = source[:watch_function.start()].count("\n") + 1
         last = source[:watch_function.end()].count("\n") + 1
         watch_lines = set(range(first, last + 1))
-    watch_calls = 0
+    mutations = {"AddQuestWatch": "C_QuestLog", "SetSuperTrackedQuestID": "C_SuperTrack"}
+    mutation_calls = {member: 0 for member in mutations}
     for index, token in enumerate(tokens):
         value = token.value
         previous = tokens[index-1].value if index else None
@@ -175,13 +177,13 @@ def _audit_source(source, name):
             continue
         if token.kind != "identifier":
             continue
-        if value == "AddQuestWatch":
+        if value in mutations:
             exact_call = [item.value for item in tokens[max(0, index-2):index+4]]
             assert token.line in watch_lines and exact_call == [
-                "C_QuestLog", ".", "AddQuestWatch", "(", "questID", ")"], (
-                    f"{name}:{token.line}: quest watch must be the direct adapter call")
-            watch_calls += 1
-            assert watch_calls == 1, f"{name}:{token.line}: duplicate quest-watch mutation"
+                mutations[value], ".", value, "(", "questID", ")"], (
+                    f"{name}:{token.line}: {value} must be the direct adapter call")
+            mutation_calls[value] += 1
+            assert mutation_calls[value] == 1, f"{name}:{token.line}: duplicate {value} mutation"
         else:
             assert value not in FORBIDDEN_IDENTIFIERS, f"{name}:{token.line}: forbidden action/indirection {value}"
         if value.startswith("C_"):
@@ -280,7 +282,24 @@ def self_test():
             pass
         else:
             raise AssertionError(f"Static audit accepted unreviewed quest watch: {source}")
-    return len(allowed) + len(forbidden) + 6
+    direct_navigation = direct_watch.replace("C_QuestLog.AddQuestWatch", "C_SuperTrack.SetSuperTrackedQuestID")
+    _audit_source(direct_navigation, "WoW.lua")
+    for source, name in [
+        (direct_navigation, "UI.lua"),
+        (direct_navigation.replace("WatchQuest", "Refresh"), "WoW.lua"),
+        (direct_navigation.replace("SetSuperTrackedQuestID(questID)", "SetSuperTrackedQuestID(78743)"), "WoW.lua"),
+        (direct_navigation.replace("return C_SuperTrack.SetSuperTrackedQuestID(questID)",
+                                   "local track = C_SuperTrack.SetSuperTrackedQuestID; return track(questID)"), "WoW.lua"),
+        (direct_navigation.replace("return C_SuperTrack.SetSuperTrackedQuestID(questID)",
+                                   "C_SuperTrack.SetSuperTrackedQuestID(questID); return C_SuperTrack.SetSuperTrackedQuestID(questID)"), "WoW.lua"),
+    ]:
+        try:
+            _audit_source(source, name)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"Static audit accepted unreviewed quest navigation: {source}")
+    return len(allowed) + len(forbidden) + 12
 
 
 if __name__ == "__main__":

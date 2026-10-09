@@ -68,8 +68,8 @@ function WoW.ClearOffers()
 end
 
 function WoW.WatchQuest(questID)
-    -- Only an explicit quest-row click calls this. A repeated click never toggles
-    -- the watch off, and no navigation or quest-log selection is changed here.
+    -- Only an explicit quest-row click calls this. Keep existing watches and
+    -- make the clicked accepted regular quest Blizzard's navigation target.
     if not ns.LiveData.IsID(questID) then return false, "INVALID_ID" end
     -- Current acceptance is authoritative, including a new iteration of a
     -- repeatable quest that has a historical completed flag.
@@ -84,19 +84,23 @@ function WoW.WatchQuest(questID)
     if type(count) ~= "number" or count < 0 or count > 1000 or count ~= math.floor(count) then
         return false, "UNAVAILABLE"
     end
+    local alreadyWatched = false
     for index = 1, count do
         local id = WoW.Call(C_QuestLog and C_QuestLog.GetQuestIDForQuestWatchIndex, index)
         if not ns.LiveData.IsID(id) then return false, "UNAVAILABLE" end
-        if id == questID then return true, "ALREADY_WATCHED" end
+        if id == questID then alreadyWatched = true end
     end
-    local limit = Constants and Constants.QuestWatchConsts and Constants.QuestWatchConsts.MAX_QUEST_WATCHES
-    if not ns.LiveData.IsID(limit) then return false, "UNAVAILABLE" end
-    if count >= limit then return false, "LIMIT" end
-    -- Retail API returns whether the quest was watched. Do not claim success
-    -- when the API is missing, throws, or refuses the watch.
-    local ok, wasWatched = pcall(function() return C_QuestLog.AddQuestWatch(questID) end)
-    if not ok or wasWatched ~= true then return false, "FAILED" end
-    return true, "WATCHED"
+    if not alreadyWatched then
+        local limit = Constants and Constants.QuestWatchConsts and Constants.QuestWatchConsts.MAX_QUEST_WATCHES
+        if not ns.LiveData.IsID(limit) then return false, "UNAVAILABLE" end
+        if count >= limit then return false, "LIMIT" end
+        -- AddQuestWatch returns a success flag; SetSuperTrackedQuestID does not.
+        local ok, wasWatched = pcall(function() return C_QuestLog.AddQuestWatch(questID) end)
+        if not ok or wasWatched ~= true then return false, "FAILED" end
+    end
+    local ok = pcall(function() C_SuperTrack.SetSuperTrackedQuestID(questID) end)
+    if not ok or WoW.SuperTrackedQuestID() ~= questID then return false, "NAVIGATION_FAILED" end
+    return true, alreadyWatched and "ALREADY_WATCHED" or "WATCHED"
 end
 
 local function readWatches(previous)
@@ -220,9 +224,8 @@ function WoW.WarnActivities()
             end
             local title = taskTitles[id] or WoW.Title({ questID = id })
             local message = string.format(ns.L.UNRELATED_WARNING, title, id, ns.chain.name)
-            ns.Print(message)
+            if ns.db.chatWarnings then ns.Print(message) end
             if ns.UI and ns.UI.ShowWarning then ns.UI.ShowWarning(message) end
-            if UIErrorsFrame then UIErrorsFrame:AddMessage(message, 1, 0.65, 0.2) end
         end
     end
 end

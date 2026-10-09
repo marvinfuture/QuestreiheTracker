@@ -17,7 +17,7 @@ local function storedSize(width, height)
 end
 
 test("window preference validation keeps only finite supported dimensions", function()
-    assert(ns.ReadConfig(nil).schemaVersion == 6)
+    assert(ns.ReadConfig(nil).schemaVersion == 7)
     for _, size in ipairs({ { width = 320, height = 300 }, { width = 1400, height = 1200 },
         { width = 830.5, height = 875.25, foreign = true } }) do
         local config = ns.ReadConfig({ size = size })

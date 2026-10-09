@@ -32,12 +32,14 @@ local function reset()
     Mock = copy(saved.mock)
     for _, name in ipairs({ "timers", "completed", "active", "titles", "requests", "offers", "log",
         "mapInfos", "questLinesByMap", "questLineQuests", "lineRequests", "questMapIDs",
-        "questMapCalls", "questLineInfoByQuest", "questLineInfoByMap", "reverseCalls" }) do
+        "questMapCalls", "questLineInfoByQuest", "questLineInfoByMap", "reverseCalls",
+        "watched", "worldWatched", "worldQuests", "questTasks", "watchAddCalls", "superTrackSetCalls" }) do
         Mock[name] = {}
     end
     for _, name in ipairs({ "failMapRead", "failMapInfo", "failLineRequest", "failLineRead",
         "failLineQuests", "failReverseLineRead", "failTrackedRead", "failTrackingKindRead",
         "failPriorityRead", "failQuestMapRead", "onLineRequest", "currentMapID",
+        "failSuperTrackSet", "refuseSuperTrackSet",
         "superTrackedQuestID", "highestPrioritySuperTrackingType" }) do Mock[name] = nil end
     Mock.isSuperTrackingQuest = false
     ns.pending = false
@@ -54,13 +56,18 @@ local function reset()
     Mock.questLinesByMap[mapID] = {}
     ns.Refresh()
 end
-local function test(name, fn)
+local function test(name, fn, allowClick)
     reset()
+    local watchAdds, navigationSets = Mock.watchAddCount, Mock.superTrackSetCount
     local ok, message = pcall(fn)
     assert(ok, "Quest lookup / " .. name .. ": " .. tostring(message))
     Mock.Flush()
     assert(#Mock.timers == 0)
     assert(Mock.mutationCount == saved.mock.mutationCount, "Lookup attempted a game mutation")
+    if not allowClick then
+        assert(Mock.watchAddCount == watchAdds and Mock.superTrackSetCount == navigationSets,
+            "Lookup attempted to watch or navigate a quest")
+    end
     for _, frame in ipairs(Mock.frames) do
         assert(frame.scripts.OnUpdate == nil, "Lookup must not install permanent polling")
     end
@@ -114,6 +121,30 @@ test("tracked button selects only API-provided exact membership", function()
     assert(ns.UI.frame:IsShown() and not ns.UI.selector:IsShown())
     assert(#Mock.reverseCalls > 0)
 end)
+
+test("clicking an already watched member supplies the target used by tracked lookup", function()
+    reverseFixture(questID)
+    Mock.active[questID], Mock.watched = true, { questID }
+    Mock.isSuperTrackingQuest, Mock.superTrackedQuestID = true, 78563
+    Mock.highestPrioritySuperTrackingType = Enum.SuperTrackingType.Quest
+    ns.LookupQuest(questID); Mock.Flush()
+    assert(ns.chain.id == liveKey)
+    local row
+    for _, candidate in pairs(ns.UI.rows) do
+        if candidate:IsShown() and rawget(candidate, "questID") == questID then row = candidate end
+    end
+    assert(row, "Clicked member needs a visible row")
+    local watchAdds, navigationSets = Mock.watchAddCount, Mock.superTrackSetCount
+    click(row); Mock.Flush()
+    assert(Mock.watchAddCount == watchAdds and Mock.superTrackSetCount == navigationSets + 1)
+    assert(ns.WoW.SuperTrackedQuestID() == questID)
+    ns.ClearSelection()
+    assert(ns.chain.empty and ns.WoW.SuperTrackedQuestID() == questID)
+    click(ns.UI.trackedButton); Mock.Flush()
+    assert(ns.chain.id == liveKey and ns.questLookup.questID == questID and ns.questLookup.status == "READY")
+    assert(Mock.watchAddCount == watchAdds and Mock.superTrackSetCount == navigationSets + 1,
+        "Tracked lookup must only read the target established by the explicit row click")
+end, true)
 
 test("ID button and Enter select runtime membership without title matching", function()
     reverseFixture(questID)

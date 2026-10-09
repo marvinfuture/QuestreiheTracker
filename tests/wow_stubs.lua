@@ -9,6 +9,7 @@ Mock = { frames = {}, timers = {}, completed = {}, active = {}, titles = {}, req
     setAbandonCount = 0, abandonCount = 0, mutationCount = 0, mutations = {},
     warningCount = 0, warnings = {}, messages = {}, watched = {}, worldWatched = {}, tasks = {}, taskInfo = {},
     now = 0, watchAddCount = 0, watchAddCalls = {}, worldQuests = {}, questTasks = {}, questsOnMap = {},
+    superTrackSetCount = 0, superTrackSetCalls = {},
     calls = 0, invalidIDCalls = 0, achievementDone = false, achievementMine = false, criteriaDone = 2 }
 local methods = {}
 local function widget(kind)
@@ -354,6 +355,21 @@ C_QuestLog.AddQuestWatch = function(id)
     for _, watchedID in ipairs(Mock.watched) do assert(watchedID ~= id, "Already watched quest was added twice") end
     Mock.watched[#Mock.watched + 1] = id
     return true
+end
+C_SuperTrack.SetSuperTrackedQuestID = function(id)
+    realID(id)
+    Mock.superTrackSetCount = Mock.superTrackSetCount + 1
+    Mock.superTrackSetCalls[#Mock.superTrackSetCalls + 1] = id
+    if Mock.failSuperTrackSet then error("Quest-navigation fixture failure") end
+    if Mock.refuseSuperTrackSet then return end
+    assert(Mock.active[id] == true, "Only currently active quests may be navigation targets")
+    assert(not Mock.worldQuests[id] and not Mock.questTasks[id], "Only regular quests may be navigation targets")
+    local watched = false
+    for _, watchedID in ipairs(Mock.watched) do if watchedID == id then watched = true end end
+    assert(watched, "Clicked quest must be watched before setting navigation")
+    Mock.superTrackedQuestID, Mock.isSuperTrackingQuest = id, true
+    Mock.highestPrioritySuperTrackingType = Enum.SuperTrackingType.Quest
+    -- The generated Blizzard contract declares no return values.
 end
 function GetBuildInfo() return "12.1.0", "69933", "2026", 120100 end
 function GetAchievementInfo(id)

@@ -1,6 +1,6 @@
 local addonName, ns = ...
 local L = ns.L
-ns.version = "0.4.0"
+ns.version = "0.4.1"
 
 function ns.Print(message)
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cffd8b66a" .. L.TITLE .. "|r: " .. tostring(message)) end
@@ -20,7 +20,9 @@ end
 
 function ns.ReadConfig(saved)
     saved = type(saved) == "table" and saved or {}
-    local config = { schemaVersion = 6, selectedChain = "none", scale = 1, minimapAngle = 315, panelPositions = {} }
+    local config = { schemaVersion = 7, selectedChain = "none", scale = 1, minimapAngle = 315,
+        chatWarnings = true, panelPositions = {} }
+    if type(saved.chatWarnings) == "boolean" then config.chatWarnings = saved.chatWarnings end
     local selection = saved.liveSelection
     if type(selection) == "table" and ns.LiveData.IsID(selection.mapID)
         and ns.LiveData.IsID(selection.questLineID)
@@ -106,7 +108,13 @@ function ns.UseTrackedQuest()
     end
 end
 
--- The only gameplay action: explicitly observing a clicked member quest.
+function ns.ToggleChatWarnings()
+    if not ns.initialized then return end
+    ns.db.chatWarnings = not ns.db.chatWarnings
+    ns.UI.RenderChatWarningSetting()
+end
+
+-- The only gameplay action: explicitly observing and navigating to a clicked member quest.
 function ns.TrackQuest(questID)
     if not ns.initialized or not ns.LiveData.IsID(questID)
         or not ns.Model.Contains(ns.chain, questID) then return end

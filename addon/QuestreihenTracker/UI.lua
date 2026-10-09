@@ -13,6 +13,7 @@ function UI.Restore()
     if position then UI.frame:SetPoint(position.point, UIParent, position.relativePoint, position.x, position.y)
     else UI.frame:SetPoint("CENTER") end
     UI.Layout(UI.frame:GetWidth())
+    UI.RenderChatWarningSetting()
     UI.RestorePanelPositions()
 end
 
@@ -34,7 +35,9 @@ function UI.Layout(width)
     local textWidth, contentWidth = width - 32, width - 60
     UI.title:SetWidth(width - 66)
     UI.select:SetWidth(textWidth - 92)
-    UI.trackedButton:SetWidth(textWidth)
+    local actionWidth = math.floor((textWidth - 8) / 2)
+    UI.trackedButton:SetWidth(actionWidth)
+    UI.chatWarningsButton:SetWidth(textWidth - actionWidth - 8)
     UI.bar:SetWidth(textWidth)
     UI.count:SetWidth(textWidth)
     UI.notice:SetWidth(textWidth)
@@ -48,6 +51,12 @@ end
 
 function UI.Toggle()
     UI.frame:SetShown(not UI.frame:IsShown())
+end
+
+function UI.RenderChatWarningSetting()
+    if UI.chatWarningsButton then
+        UI.chatWarningsButton:SetText(ns.db.chatWarnings and L.CHAT_WARNINGS_ON or L.CHAT_WARNINGS_OFF)
+    end
 end
 
 function UI.Create()
@@ -97,7 +106,7 @@ function UI.Create()
         GameTooltip:Show()
     end)
     UI.clearButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    UI.trackedButton = UI.Button(frame, L.LOOKUP_TRACKED, 328, 16, -74, ns.UseTrackedQuest)
+    UI.trackedButton = UI.Button(frame, L.LOOKUP_TRACKED, 160, 16, -74, ns.UseTrackedQuest)
     UI.trackedButton:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
         GameTooltip:SetText(L.LOOKUP_TRACKED)
@@ -105,6 +114,16 @@ function UI.Create()
         GameTooltip:Show()
     end)
     UI.trackedButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    UI.chatWarningsButton = UI.Button(frame, "", 160, 184, -74, ns.ToggleChatWarnings)
+    UI.chatWarningsButton:ClearAllPoints()
+    UI.chatWarningsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -16, -74)
+    UI.chatWarningsButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
+        GameTooltip:SetText(self:GetText())
+        GameTooltip:AddLine(L.CHAT_WARNINGS_HINT, 0.85, 0.85, 0.85, true)
+        GameTooltip:Show()
+    end)
+    UI.chatWarningsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
     local bar = CreateFrame("StatusBar", nil, frame)
     bar:SetSize(328, 16)
     bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -106)

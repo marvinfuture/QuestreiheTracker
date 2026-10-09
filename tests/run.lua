@@ -92,7 +92,7 @@ test("saved preferences discard old catalogs progress titles and feature flags",
         highlight = false, markOther = true, scale = 1.1, completed = { [78743] = true },
         titles = { [78743] = "Old title" }, questLines = { fixture() },
         panelPositions = { options = { point = "CENTER", relativePoint = "CENTER", x = 1, y = 2 } } })
-    assert(config.schemaVersion == 6 and config.selectedChain == "none" and config.scale == 1)
+    assert(config.schemaVersion == 7 and config.selectedChain == "none" and config.scale == 1)
     for _, key in ipairs({ "autoAccept", "autoAbandon", "warnUnrelated", "offerHint", "otherHint",
         "highlight", "markOther", "completed", "titles", "questLines" }) do assert(config[key] == nil) end
     assert(config.panelPositions.options == nil)

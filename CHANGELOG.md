@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1 — 2026-10-09
+
+- Removed the duplicate activity-warning text sent to Blizzard's error frame. The prominent warning box remains the sole on-screen addon warning, with its existing duration and event deduplication.
+- Added **Chatwarnung: An/Aus** beside **Verfolgte Quest** in the main window. It actually controls activity-warning chat output, defaults to **An**, persists per character and leaves the warning box active. Selection removal preserves the choice; reset restores **An**.
+- Corrected quest-row left click to add an accepted regular quest's watch when needed and make it the active navigation target. Already watched quests can be selected again, so **Verfolgte Quest** can resolve the clicked quest. API failures produce German feedback; events and refreshes never set navigation.
+
+Validation: `scripts/check.cmd` passes 117 counted behavioral cases, separate banner-deadline/startup/reload/missing-API checks, 54 static guard cases and Lua 5.1 loading of all 10 addon files. The boundary covers 26 reviewed C API members, with zero forbidden game API attempts or invalid IDs. The 13-file v0.4.1 addon ZIP was built successfully. The user's 0.4.0 screenshot and click report identify the defects, not a successful 0.4.1 client retest. Actual client layout, navigation and Lua/taint checks remain pending in docs/IN_GAME_TEST.md.
+
 ## 0.4.0 — 2026-10-09
 
 - Added explicit left-click observing for accepted regular quests through Blizzard's quest-watch API, with membership/ID/kind/limit checks and local failure messages. Repeated clicks keep existing watches; navigation is not set.

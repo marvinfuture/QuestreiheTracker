@@ -1,4 +1,4 @@
--- These fixtures trap all actions except explicitly requested regular-quest watches.
+-- These fixtures trap all actions except explicit regular-quest watch/navigation clicks.
 -- They do not establish live-client layout, Blizzard internals, or taint safety.
 local ns, passed = TEST_NS, 0
 local fixture = assert(ns.LiveData.Build(2248, { questLineID = 5506,
@@ -30,18 +30,23 @@ end
 local function noMutation(before)
     assert(Mock.mutationCount == 0, "Forbidden game API used: " .. table.concat(Mock.mutations or {}, ", "))
     assert(Mock.acceptCount == 0 and Mock.setAbandonCount == 0 and Mock.abandonCount == 0)
-    assert(Mock.opened == nil, "Tracker opened Blizzard quest navigation")
+    assert(Mock.opened == nil, "Tracker opened Blizzard quest details")
     assert(same(before, gameState()), "Display interaction changed a game-data fixture")
 end
 local function test(name, fn, allowWatch)
     local before = gameState()
     local watchAdds, watches = Mock.watchAddCount, copy(Mock.watched)
+    local navigationSets, navigation = Mock.superTrackSetCount, Mock.superTrackedQuestID
+    local trackingQuest, trackingKind = Mock.isSuperTrackingQuest, Mock.highestPrioritySuperTrackingType
     local ok, message = pcall(fn)
     assert(ok, "Quest interactions / " .. name .. ": " .. tostring(message))
     noMutation(before)
     if not allowWatch then
         assert(Mock.watchAddCount == watchAdds and same(watches, Mock.watched),
             "Read-only interaction changed quest watches")
+        assert(Mock.superTrackSetCount == navigationSets and Mock.superTrackedQuestID == navigation
+            and Mock.isSuperTrackingQuest == trackingQuest and Mock.highestPrioritySuperTrackingType == trackingKind,
+            "Read-only interaction changed quest navigation")
     end
     passed = passed + 1
 end
@@ -94,51 +99,74 @@ local function watchTest(name, fn)
     Mock.Flush()
     local saved = { active = Mock.active, completed = Mock.completed, watched = Mock.watched,
         worldQuests = Mock.worldQuests, questTasks = Mock.questTasks, combat = Mock.combat,
-        questLog = C_QuestLog, constants = Constants }
+        questLog = C_QuestLog, superTrack = C_SuperTrack, constants = Constants, enum = Enum,
+        superTrackedQuestID = Mock.superTrackedQuestID, isSuperTrackingQuest = Mock.isSuperTrackingQuest,
+        highestPrioritySuperTrackingType = Mock.highestPrioritySuperTrackingType }
     local api = {}; for key, value in pairs(C_QuestLog) do api[key] = value end
     C_QuestLog = api
+    api = {}; for key, value in pairs(C_SuperTrack) do api[key] = value end
+    C_SuperTrack = api
+    Enum = { SuperTrackingType = { Quest = 0, UserWaypoint = 1 } }
     Constants = { QuestWatchConsts = { MAX_QUEST_WATCHES = 25 } }
     Mock.active, Mock.completed, Mock.watched = { [78743] = true }, {}, {}
     Mock.worldQuests, Mock.questTasks, Mock.combat = {}, {}, false
+    Mock.superTrackedQuestID, Mock.isSuperTrackingQuest, Mock.highestPrioritySuperTrackingType = nil, false, nil
     ns.Select(fixture.id); ns.UI.frame:Show(); Mock.Flush()
     -- Adapter tests may change read fixtures; each assertion captures its own
     -- immutable quest data immediately before invoking the adapter or click.
     local ok, message = pcall(fn)
     Mock.Flush()
-    C_QuestLog, Constants = saved.questLog, saved.constants
+    C_QuestLog, C_SuperTrack, Constants, Enum = saved.questLog, saved.superTrack, saved.constants, saved.enum
     Mock.active, Mock.completed, Mock.watched = saved.active, saved.completed, saved.watched
     Mock.worldQuests, Mock.questTasks, Mock.combat = saved.worldQuests, saved.questTasks, saved.combat
+    Mock.superTrackedQuestID, Mock.isSuperTrackingQuest = saved.superTrackedQuestID, saved.isSuperTrackingQuest
+    Mock.highestPrioritySuperTrackingType = saved.highestPrioritySuperTrackingType
     Mock.failWatchAdd, Mock.refuseWatchAdd, Mock.failWatchRead, Mock.failQuestKindRead = nil, nil, nil, nil
+    Mock.failSuperTrackSet, Mock.refuseSuperTrackSet = nil, nil
+    Mock.failTrackedRead, Mock.failTrackingKindRead, Mock.failPriorityRead = nil, nil, nil
     assert(ok, "Quest watching / " .. name .. ": " .. tostring(message))
     assert(Mock.mutationCount == 0 and Mock.invalidIDCalls == 0)
     passed = passed + 1
     ns.WoW.ResetWarnings(); ns.Refresh(); Mock.Flush()
 end
-local function watchResult(id, success, status, adds)
-    local before, count = gameState(), Mock.watchAddCount
+local function watchResult(id, success, status, adds, navigationSets)
+    local before, count, sets = gameState(), Mock.watchAddCount, Mock.superTrackSetCount
     local ok, result = ns.WoW.WatchQuest(id)
     assert(ok == success and result == status, tostring(result))
     assert(Mock.watchAddCount == count + (adds or 0))
+    assert(Mock.superTrackSetCount == sets + (navigationSets or (success and 1 or 0)))
+    if success then assert(ns.WoW.SuperTrackedQuestID() == id) end
     noMutation(before)
 end
 
-watchTest("left click observes an accepted quest once without changing navigation", function()
+watchTest("left click observes an accepted quest once and selects its navigation", function()
     local chosen
     for _, row in ipairs(visibleRows()) do if row.questID == 78743 then chosen = row end end
     assert(chosen and chosen.clickButtons[1] == "LeftButtonUp" and chosen.clickButtons[2] == "RightButtonUp")
     if ns.UI.link then ns.UI.link:Hide() end
-    local before, adds, navigation = gameState(), Mock.watchAddCount, Mock.superTrackedQuestID
+    local before, adds, sets = gameState(), Mock.watchAddCount, Mock.superTrackSetCount
     click(chosen, "LeftButton")
     assert(Mock.watchAddCount == adds + 1 and #Mock.watched == 1 and Mock.watched[1] == 78743)
     assert(not ns.UI.link:IsShown(), "Left click must not open a Wowhead link")
-    assert(Mock.superTrackedQuestID == navigation)
+    assert(ns.WoW.SuperTrackedQuestID() == 78743 and Mock.superTrackSetCount == sets + 1)
     click(chosen, "LeftButton")
     assert(Mock.watchAddCount == adds + 1 and #Mock.watched == 1, "Repeated click must keep the quest watched")
+    assert(Mock.superTrackSetCount == sets + 2)
     click(chosen, "MiddleButton")
-    assert(Mock.watchAddCount == adds + 1)
+    assert(Mock.watchAddCount == adds + 1 and Mock.superTrackSetCount == sets + 2)
     click(chosen, "RightButton")
-    assert(ns.UI.link:IsShown() and Mock.watchAddCount == adds + 1)
+    assert(ns.UI.link:IsShown() and Mock.watchAddCount == adds + 1 and Mock.superTrackSetCount == sets + 2)
     noMutation(before)
+end)
+
+watchTest("an already watched quest replaces another quest or waypoint navigation", function()
+    Mock.watched = { 78743 }
+    Mock.superTrackedQuestID, Mock.isSuperTrackingQuest = 78744, true
+    Mock.highestPrioritySuperTrackingType = Enum.SuperTrackingType.Quest
+    watchResult(78743, true, "ALREADY_WATCHED")
+    Mock.highestPrioritySuperTrackingType = Enum.SuperTrackingType.UserWaypoint
+    watchResult(78743, true, "ALREADY_WATCHED")
+    assert(#Mock.watched == 1 and Mock.watched[1] == 78743)
 end)
 
 watchTest("invalid synthetic inactive and completed absent quests never request a watch", function()
@@ -219,6 +247,31 @@ watchTest("explicit combat click uses the normal watch API without a deferred ac
     Mock.combat = true
     watchResult(78743, true, "WATCHED", 1)
     assert(#Mock.timers == 0)
+end)
+
+watchTest("missing throwing and silently rejected navigation never report success", function()
+    local setter = C_SuperTrack.SetSuperTrackedQuestID
+    C_SuperTrack.SetSuperTrackedQuestID = nil
+    watchResult(78743, false, "NAVIGATION_FAILED", 1)
+    assert(Mock.watched[1] == 78743, "A navigation failure must preserve the successful watch")
+    C_SuperTrack.SetSuperTrackedQuestID = setter
+    Mock.failSuperTrackSet = true
+    watchResult(78743, false, "NAVIGATION_FAILED", 0, 1)
+    Mock.failSuperTrackSet, Mock.refuseSuperTrackSet = nil, true
+    watchResult(78743, false, "NAVIGATION_FAILED", 0, 1)
+    Mock.refuseSuperTrackSet = nil
+    for _, failure in ipairs({ "failTrackedRead", "failTrackingKindRead", "failPriorityRead" }) do
+        Mock[failure] = true
+        watchResult(78743, false, "NAVIGATION_FAILED", 0, 1)
+        Mock[failure] = nil
+    end
+    local reader = C_SuperTrack.GetSuperTrackedQuestID
+    C_SuperTrack.GetSuperTrackedQuestID = nil
+    watchResult(78743, false, "NAVIGATION_FAILED", 0, 1)
+    C_SuperTrack.GetSuperTrackedQuestID = reader
+    local sets = Mock.superTrackSetCount
+    event("QUEST_LOG_UPDATE"); event("SUPER_TRACKING_CHANGED"); event("PLAYER_REGEN_ENABLED"); Mock.Flush()
+    assert(Mock.superTrackSetCount == sets, "Navigation failures must wait for another explicit click")
 end)
 
 test("quest NPC progress and data events only refresh the display", function()

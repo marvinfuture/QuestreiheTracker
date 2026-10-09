@@ -5,7 +5,15 @@ local questID, otherID, memberID = 78562, 78563, 78743
 local chain = assert(ns.LiveData.Build(2248, { questLineID = 5506,
     questLineName = "Activity warning fixture" }, { 78743, 78744, 78745 }))
 local saved = { questLog = C_QuestLog, superTrack = C_SuperTrack,
-    tasks = GetTasksTable, taskInfo = GetTaskInfo, enum = Enum }
+    tasks = GetTasksTable, taskInfo = GetTaskInfo, enum = Enum,
+    showWarning = ns.UI.ShowWarning, errors = UIErrorsFrame }
+local nativeWarnings = 0
+UIErrorsFrame = { AddMessage = function() nativeWarnings = nativeWarnings + 1 end }
+ns.UI.ShowWarning = function(message)
+    Mock.warningCount = Mock.warningCount + 1
+    Mock.warnings[#Mock.warnings + 1] = message
+    return saved.showWarning(message)
+end
 local function clone(value)
     local result = {}; for key, item in pairs(value) do result[key] = item end; return result
 end
@@ -43,6 +51,7 @@ local function test(name, fn)
     local ok, message = pcall(fn)
     assert(ok, "Activity warnings / " .. name .. ": " .. tostring(message))
     assert(Mock.mutationCount == 0 and Mock.invalidIDCalls == 0)
+    assert(nativeWarnings == 0, "Addon warnings must use only the warning banner")
     assert(#Mock.timers == 0, "Warnings must not leave a retry timer")
     for _, frame in ipairs(Mock.frames) do assert(frame.scripts.OnUpdate == nil) end
     passed = passed + 1
@@ -205,6 +214,7 @@ end)
 
 C_QuestLog, C_SuperTrack, GetTasksTable, GetTaskInfo, Enum = saved.questLog, saved.superTrack,
     saved.tasks, saved.taskInfo, saved.enum
+ns.UI.ShowWarning, UIErrorsFrame = saved.showWarning, saved.errors
 Mock.tasks, Mock.taskInfo, Mock.watched, Mock.worldWatched = {}, {}, {}, {}
 Mock.superTrackedQuestID, Mock.isSuperTrackingQuest = nil, false
 ns.WoW.ResetWarnings()
