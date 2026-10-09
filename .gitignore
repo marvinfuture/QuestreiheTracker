@@ -1,0 +1,9 @@
+.tools/
+.venv/
+__pycache__/
+*.pyc
+outputs/
+work/
+.env
+.DS_Store
+Thumbs.db

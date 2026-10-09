@@ -1,0 +1,2 @@
+# Developer tests only; never shipped inside the addon.
+lupa==2.6

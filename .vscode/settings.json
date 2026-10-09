@@ -1,0 +1,31 @@
+{
+  "Lua.runtime.version": "Lua 5.1",
+  "Lua.workspace.checkThirdParty": false,
+  "Lua.diagnostics.globals": [
+    "CreateFrame",
+    "UIParent",
+    "GameTooltip",
+    "UISpecialFrames",
+    "SlashCmdList",
+    "DEFAULT_CHAT_FRAME",
+    "QuestStrangTrackerDB",
+    "SLASH_QUESTSTRANGTRACKER1",
+    "C_Timer",
+    "C_QuestLog",
+    "C_GossipInfo",
+    "GetAchievementInfo",
+    "GetAchievementNumCriteria",
+    "GetAchievementCriteriaInfo",
+    "GetBuildInfo",
+    "UnitFactionGroup",
+    "UnitExists",
+    "InCombatLockdown",
+    "GetQuestID",
+    "QuestMapFrame_OpenToQuestDetails",
+    "QuestGetAutoAccept",
+    "QuestFlagsPVP",
+    "QuestIsFromAreaTrigger",
+    "QuestIsFromAdventureMap",
+    "AcceptQuest"
+  ]
+}

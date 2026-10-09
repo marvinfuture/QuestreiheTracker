@@ -1,0 +1,17 @@
+## Interface: 120100
+## Title: Questreihe Tracker
+## Notes: Compact quest-line tracker with runtime Blizzard data and German UI.
+## Author: Questreihe Tracker contributors
+## Version: 0.3.1
+## SavedVariablesPerCharacter: QuestStrangTrackerDB
+
+Locale.lua
+LiveData.lua
+Model.lua
+WoW.lua
+WoWQuestLines.lua
+WoWQuestLookup.lua
+UIHelpers.lua
+UI.lua
+Minimap.lua
+Core.lua
