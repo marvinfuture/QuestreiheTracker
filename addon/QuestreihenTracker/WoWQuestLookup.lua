@@ -2,16 +2,19 @@ local _, ns = ...
 local WoW, LiveData = ns.WoW, ns.LiveData
 local dataResults = {}
 
+-- Safely read an optional API while exposing whether the call actually succeeded.
 local function call(fn, ...)
     if type(fn) ~= "function" then return nil, false end
     local ok, value = pcall(fn, ...)
     return value, ok
 end
 
+-- Cancel the active reverse lookup without discarding shared quest metadata results.
 function WoW.ResetQuestLookup()
     WoW.questLookup = nil
 end
 
+-- Cache metadata outcomes and finish the matching in-flight quest lookup.
 function WoW.OnQuestLookupDataLoadResult(questID, success)
     if not LiveData.IsID(questID) or type(success) ~= "boolean" then return end
     dataResults[questID] = success
@@ -21,6 +24,7 @@ function WoW.OnQuestLookupDataLoadResult(questID, success)
     end
 end
 
+-- Resolve Blizzard's active quest navigation target with explicit unsupported and error states.
 function WoW.SuperTrackedQuestID()
     if type(C_SuperTrack and C_SuperTrack.IsSuperTrackingQuest) ~= "function"
         or type(C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID) ~= "function" then return nil, "UNSUPPORTED" end
@@ -39,12 +43,14 @@ function WoW.SuperTrackedQuestID()
     return questID, "READY"
 end
 
+-- Confirm exact quest membership only in a loaded nonempty line.
 local function member(chain, questID)
     if chain.empty or chain.loading then return false end
     local _, byID = ns.Model.Flatten(chain)
     return byID[questID] ~= nil
 end
 
+-- Find a verified cached line containing the quest with stable ordering across maps.
 local function cached(questID)
     local ids, byID = {}, {}
     for _, map in pairs(WoW.questLines.maps) do
@@ -56,6 +62,7 @@ local function cached(questID)
     return byID[ids[1]]
 end
 
+-- Choose a lookup context from the line's start map, quest map, or current zone.
 local function mapContext(questID, info)
     if info and LiveData.IsID(info.startMapID) then return info.startMapID end
     local mapID = WoW.Call(GetQuestUiMapID, questID)
@@ -65,6 +72,7 @@ local function mapContext(questID, info)
     return nil
 end
 
+-- Request missing quest metadata once, reusing known outcomes to track lookup readiness.
 local function requestData(lookup)
     if lookup.dataRequested then return end
     lookup.dataRequested = true
@@ -86,6 +94,7 @@ local function requestData(lookup)
     if WoW.failedRequests[lookup.questID] then lookup.dataFinished, lookup.dataFailed = true, true end
 end
 
+-- Resolve a Blizzard line association and verify actual membership before registering it.
 local function association(lookup)
     local questID = lookup.questID
     local info, ok = call(C_QuestLine.GetQuestLineInfo, questID, nil, false)
@@ -120,6 +129,7 @@ local function association(lookup)
     return nil, "LOADING", mapID
 end
 
+-- Request each lookup map once and propagate its immediate loading error.
 local function requestMap(lookup, mapID)
     if mapID and not lookup.maps[mapID] then
         lookup.maps[mapID] = true
@@ -128,6 +138,7 @@ local function requestMap(lookup, mapID)
     end
 end
 
+-- Advance a quest-ID reverse lookup through cached membership and asynchronous game data.
 function WoW.FindQuestLine(questID)
     if not LiveData.IsID(questID) then return nil, "INVALID_ID" end
     local chain = cached(questID)

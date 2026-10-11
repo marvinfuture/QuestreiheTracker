@@ -3,16 +3,19 @@ local WoW, LiveData = ns.WoW, ns.LiveData
 WoW.questLines = { maps = {} }
 local state = WoW.questLines
 
+-- Require the three Blizzard APIs needed to request maps and read line membership.
 local function supported()
     return C_QuestLine and type(C_QuestLine.RequestQuestLinesForMap) == "function"
         and type(C_QuestLine.GetAvailableQuestLines) == "function"
         and type(C_QuestLine.GetQuestLineQuests) == "function"
 end
 
+-- Read optional map metadata through the protected game adapter.
 local function mapInfo(mapID)
     return WoW.Call(C_Map and C_Map.GetMapInfo, mapID)
 end
 
+-- Walk bounded parent links to normalize city or subzone maps to a zone.
 local function zoneForMap(mapID)
     if not LiveData.IsID(mapID) then return nil end
     local original, seen = mapID, {}
@@ -29,10 +32,12 @@ local function zoneForMap(mapID)
     return original
 end
 
+-- Resolve the player's best map into the zone used for discovery.
 local function currentZone()
     return zoneForMap(WoW.Call(C_Map and C_Map.GetBestMapForUnit, "player"))
 end
 
+-- Create a map cache and request its quest lines once or on explicit refresh.
 local function requestMap(mapID, force)
     if not LiveData.IsID(mapID) then return end
     local map = state.maps[mapID]
@@ -58,6 +63,7 @@ local function requestMap(mapID, force)
     return map
 end
 
+-- Request the current zone and refresh a selected line's other map when asked.
 function WoW.DiscoverZone(force)
     state.currentMapID = currentZone()
     if state.currentMapID then requestMap(state.currentMapID, force) end
@@ -66,23 +72,27 @@ function WoW.DiscoverZone(force)
     end
 end
 
+-- Find a runtime line by its stable ID across all requested map caches.
 function WoW.GetQuestLine(id)
     for _, map in pairs(state.maps) do
         if map.byID[id] then return map.byID[id] end
     end
 end
 
+-- Force a map request for a reverse lookup and return its loading state.
 -- Lookup maps are request contexts, not claims about a quest's location.
 function WoW.RequestQuestLineMap(mapID)
     return requestMap(mapID, true)
 end
 
+-- Retain a verified name when a new response for the same line lacks localized text.
 local function preserveName(chain, previous)
     if not chain.nameKnown and previous and previous.questLineID == chain.questLineID and previous.nameKnown then
         chain.name, chain.nameKnown, chain.nameSourceAPI = previous.name, true, previous.nameSourceAPI
     end
 end
 
+-- Fill a missing name by checking member quest associations for the same line ID.
 -- Map discovery can omit completed/filtered lines or return membership before
 -- the localized name. Only a matching line association can supply its name.
 function WoW.ResolveQuestLineName(chain)
@@ -108,6 +118,7 @@ function WoW.ResolveQuestLineName(chain)
     return chain
 end
 
+-- Cache a validated runtime line while preserving any previously verified name.
 function WoW.RegisterQuestLine(chain)
     if type(chain) ~= "table" or not chain.runtime or not LiveData.IsID(chain.mapID)
         or not LiveData.IsID(chain.questLineID) then return nil end
@@ -123,6 +134,7 @@ function WoW.RegisterQuestLine(chain)
     return chain
 end
 
+-- Recreate a loading selection from saved IDs and request fresh game membership.
 function WoW.RestoreQuestLine(selection)
     if type(selection) ~= "table" or not LiveData.IsID(selection.mapID)
         or not LiveData.IsID(selection.questLineID) then return nil end
@@ -132,18 +144,21 @@ function WoW.RestoreQuestLine(selection)
     return map.byID[chain.id]
 end
 
+-- Refresh the selected line's missing name only when it belongs to this map cache.
 local function resolveSelectedName(map, selected)
     if selected and selected.mapID == map.mapID then
         WoW.ResolveQuestLineName(map.byID[selected.id] or selected)
     end
 end
 
+-- Require loaded exact membership before admitting a quest-associated line.
 local function member(chain, questID)
     if not chain or chain.loading then return false end
     local _, byID = ns.Model.Flatten(chain)
     return byID[questID] ~= nil
 end
 
+-- Read a quest's line association using global, current-zone, and destination contexts.
 local function activeLineInfo(questID, mapID, questMapID)
     local info = WoW.Call(C_QuestLine.GetQuestLineInfo, questID, nil, false)
     if info == nil then info = WoW.Call(C_QuestLine.GetQuestLineInfo, questID, mapID, false) end
@@ -153,10 +168,12 @@ local function activeLineInfo(questID, mapID, questMapID)
     if type(info) == "table" and LiveData.IsID(info.questLineID) then return info end
 end
 
+-- Supplement current-zone discoveries with verified lines from accepted member quests.
 local function addActiveLines(map, chains, seen)
     if map.mapID ~= state.currentMapID
         or type(C_QuestLine and C_QuestLine.GetQuestLineInfo) ~= "function" then return end
     local candidates, visited = {}, {}
+    -- Deduplicate valid quest IDs collected from quest-log and map entries.
     local function addQuest(questID)
         if LiveData.IsID(questID) and not visited[questID] then
             visited[questID], candidates[#candidates + 1] = true, questID
@@ -207,6 +224,7 @@ local function addActiveLines(map, chains, seen)
     end
 end
 
+-- Rebuild map choices from game data while retaining verified selected membership and names.
 local function readMap(map, selected)
     if map.needsRequest then
         map.needsRequest = nil
@@ -225,6 +243,7 @@ local function readMap(map, selected)
         local seen = {}
         for _, chain in ipairs(map.chains) do seen[chain.id] = true end
         addActiveLines(map, map.chains, seen)
+        -- Keep cached and newly accepted choices ordered by name, then stable ID.
         table.sort(map.chains, function(a, b) return a.name == b.name and a.id < b.id or a.name < b.name end)
         resolveSelectedName(map, selected)
         return
@@ -278,15 +297,18 @@ local function readMap(map, selected)
         end
         WoW.ResolveQuestLineName(chain)
     end
+    -- Order refreshed choices consistently by localized name and stable ID.
     table.sort(chains, function(a, b) return a.name == b.name and a.id < b.id or a.name < b.name end)
 end
 
+-- Refresh one requested map while preserving the selected line's independent context.
 function WoW.ReadQuestLineMap(mapID)
     local map = state.maps[mapID]
     if map then readMap(map, ns.chain and ns.chain.runtime and ns.chain or nil) end
     return map
 end
 
+-- Refresh the current zone, selected map, and maps used by an active reverse lookup.
 function WoW.ReadQuestLines()
     local selected = ns.chain and ns.chain.runtime and ns.chain or nil
     local map = state.maps[state.currentMapID]
@@ -303,6 +325,7 @@ function WoW.ReadQuestLines()
     end
 end
 
+-- Mark relevant maps ready or due for a new request after Blizzard's update event.
 function WoW.OnQuestLineUpdate(requestRequired)
     local relevant = {}
     -- Restoration can dispatch this event before Core assigns the selection.
@@ -316,6 +339,7 @@ function WoW.OnQuestLineUpdate(requestRequired)
     end
 end
 
+-- Return current-zone choices with a localized-display status and zone name.
 function WoW.ZoneQuestLines()
     if not supported() then return {}, "UNSUPPORTED", nil end
     local map = state.maps[state.currentMapID]

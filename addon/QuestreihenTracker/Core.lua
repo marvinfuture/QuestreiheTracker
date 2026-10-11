@@ -1,16 +1,19 @@
 local addonName, ns = ...
 local L = ns.L
-ns.version = "0.4.1"
+ns.version = "0.5.0"
 
+-- Write localized addon feedback to the player's own chat frame.
 function ns.Print(message)
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cffd8b66a" .. L.TITLE .. "|r: " .. tostring(message)) end
 end
 
 local anchors = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true,
     RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true }
+-- Reject invalid or extreme saved coordinates before restoring window geometry.
 local function finite(value)
     return type(value) == "number" and value == value and value > -10000 and value < 10000
 end
+-- Copy a supported saved anchor without retaining unknown preference fields.
 local function readPosition(position)
     if type(position) == "table" and anchors[position.point] and anchors[position.relativePoint]
         and finite(position.x) and finite(position.y) then
@@ -18,11 +21,13 @@ local function readPosition(position)
     end
 end
 
+-- Migrate and validate character preferences while deriving all progress from the client.
 function ns.ReadConfig(saved)
     saved = type(saved) == "table" and saved or {}
-    local config = { schemaVersion = 7, selectedChain = "none", scale = 1, minimapAngle = 315,
-        chatWarnings = true, panelPositions = {} }
+    local config = { schemaVersion = 8, selectedChain = "none", scale = 1, minimapAngle = 315,
+        chatWarnings = true, screenWarnings = true, panelPositions = {} }
     if type(saved.chatWarnings) == "boolean" then config.chatWarnings = saved.chatWarnings end
+    if type(saved.screenWarnings) == "boolean" then config.screenWarnings = saved.screenWarnings end
     local selection = saved.liveSelection
     if type(selection) == "table" and ns.LiveData.IsID(selection.mapID)
         and ns.LiveData.IsID(selection.questLineID)
@@ -51,6 +56,7 @@ function ns.ReadConfig(saved)
     return config
 end
 
+-- Replace the displayed line and reset its ephemeral offers, warnings, and scroll position.
 local function applySelection(selected)
     ns.chain, ns.db.selectedChain = selected, selected.id
     ns.db.liveSelection = selected.runtime and { mapID = selected.mapID, questLineID = selected.questLineID } or nil
@@ -61,11 +67,14 @@ local function applySelection(selected)
     if ns.UI.scroll then ns.UI.scroll:SetVerticalScroll(0) end
 end
 
+-- Cancel both lookup modes so late data cannot replace the player's current choice.
 function ns.CancelQuestLookup()
     ns.questLookup = nil
+    ns.nameLookup = nil
     ns.WoW.ResetQuestLookup()
 end
 
+-- Clear the addon selection while retaining preferences and Blizzard quest state.
 function ns.ClearSelection()
     if not ns.initialized then return end
     ns.CancelQuestLookup()
@@ -75,6 +84,7 @@ function ns.ClearSelection()
     ns.Refresh()
 end
 
+-- Retry the submitted quest association after client data events and apply confirmed results.
 local function resolveQuestLookup()
     local lookup = ns.questLookup
     if not lookup or not lookup.pending then return end
@@ -88,6 +98,7 @@ local function resolveQuestLookup()
     end
 end
 
+-- Start a guarded quest-ID lookup without hiding the existing view while data loads.
 function ns.LookupQuest(questID)
     ns.CancelQuestLookup()
     ns.questLookup = { questID = questID, status = "INVALID_ID", pending = false }
@@ -98,6 +109,7 @@ function ns.LookupQuest(questID)
     else ns.UI.RenderQuestLookup() end
 end
 
+-- Read the current Blizzard quest navigation target and look up its quest line.
 function ns.UseTrackedQuest()
     ns.CancelQuestLookup()
     local questID, status = ns.WoW.SuperTrackedQuestID()
@@ -108,10 +120,37 @@ function ns.UseTrackedQuest()
     end
 end
 
+-- Save the chat-output preference without rearming already observed quest activity.
 function ns.ToggleChatWarnings()
     if not ns.initialized then return end
     ns.db.chatWarnings = not ns.db.chatWarnings
     ns.UI.RenderChatWarningSetting()
+end
+
+-- Save the independent banner preference and immediately retire a disabled banner.
+function ns.ToggleScreenWarnings()
+    if not ns.initialized then return end
+    ns.db.screenWarnings = not ns.db.screenWarnings
+    if not ns.db.screenWarnings then
+        ns.UI.ClearWarning()
+        ns.ScheduleWarningExpiry()
+    end
+    ns.UI.RenderScreenWarningSetting()
+end
+
+-- Submit an explicit name query without replacing the currently displayed quest list.
+function ns.LookupName(text)
+    ns.CancelQuestLookup()
+    ns.nameLookup = { text = text or "", results = {}, status = "INVALID" }
+    ns.Refresh()
+end
+
+-- Advance the finite achievement index only while a submitted name search is active.
+local function resolveNameLookup()
+    local lookup = ns.nameLookup
+    if not lookup then return end
+    lookup.results, lookup.status = ns.WoW.SearchQuestLinesByName(lookup.text)
+    if lookup.status == "LOADING" then ns.ScheduleRefresh() end
 end
 
 -- The only gameplay action: explicitly observing and navigating to a clicked member quest.
@@ -123,10 +162,12 @@ function ns.TrackQuest(questID)
     else ns.Print(ns.L["WATCH_" .. status] or ns.L.WATCH_FAILED) end
 end
 
+-- Rebuild live progress, advance submitted lookups, and redraw the existing widgets.
 function ns.Refresh()
     if not ns.initialized then return end
     ns.WoW.ReadQuestLines()
     resolveQuestLookup()
+    resolveNameLookup()
     if ns.chain.runtime then ns.chain = ns.WoW.GetQuestLine(ns.chain.id) or ns.chain end
     ns.snapshot = ns.WoW.Snapshot(ns.chain)
     ns.result = ns.Model.Evaluate(ns.chain, ns.snapshot)
@@ -135,6 +176,7 @@ function ns.Refresh()
     ns.UI.RenderWarning()
 end
 
+-- Request current-zone lines and optionally retry metadata after explicit refresh.
 function ns.DiscoverZone(force)
     if not ns.initialized then return end
     local previous = ns.WoW.questLines.currentMapID
@@ -144,6 +186,7 @@ function ns.DiscoverZone(force)
 end
 
 local armTimer
+-- Keep one cancellable timer for pending refresh work and the banner's expiry deadline.
 armTimer = function()
     if not ns.initialized then return end
     local due = ns.refreshDue
@@ -153,6 +196,7 @@ armTimer = function()
     if ns.timer then ns.timer:Cancel(); ns.timer, ns.timerDue = nil, nil end
     if not due then return end
     ns.timerDue = due
+    -- Run due work once, then retain a timer only for another concrete pending deadline.
     ns.timer = C_Timer.NewTimer(math.max(0, due - GetTime()), function()
         ns.timer, ns.timerDue = nil, nil
         ns.UI.RenderWarning()
@@ -165,16 +209,19 @@ armTimer = function()
     end)
 end
 
+-- Reconcile the banner deadline with any refresh already queued on the shared timer.
 function ns.ScheduleWarningExpiry()
     armTimer()
 end
 
+-- Coalesce game events or finite search chunks into one short delayed refresh.
 function ns.ScheduleRefresh()
     if ns.pending or not ns.initialized then return end
     ns.pending, ns.refreshDue = true, GetTime() + 0.1
     armTimer()
 end
 
+-- Select an existing client-supplied line after cancelling unrelated lookup work.
 function ns.Select(id)
     local selected = ns.WoW.GetQuestLine(id)
     if not selected then return end
@@ -184,6 +231,7 @@ function ns.Select(id)
     ns.ScheduleRefresh()
 end
 
+-- Print addon, client, and progress information for reproducible client diagnostics.
 function ns.Debug()
     ns.Print(string.format(L.DEBUG_VERSION, ns.version, ns.chain.name))
     if type(GetBuildInfo) == "function" then
@@ -193,6 +241,7 @@ function ns.Debug()
     ns.Print(string.format(L.DEBUG_PROGRESS, ns.result.completed, ns.result.total, #ns.result.next))
 end
 
+-- Dispatch localized slash-command actions and read-only quest diagnostics.
 function ns.Slash(text)
     local command, argument = string.match(text or "", "^%s*(%S*)%s*(.-)%s*$")
     command = string.lower(command)
@@ -224,6 +273,7 @@ end
 local events = CreateFrame("Frame")
 ns.eventFrame = events
 events:RegisterEvent("ADDON_LOADED")
+-- Initialize saved preferences once and route client data events through coalesced refreshes.
 events:SetScript("OnEvent", function(_, event, ...)
     if event == "ADDON_LOADED" then
         if (...) ~= addonName or ns.initialized then return end
@@ -241,6 +291,9 @@ events:SetScript("OnEvent", function(_, event, ...)
             "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_CHANGED", "TASK_PROGRESS_UPDATE", "QUEST_POI_UPDATE" }) do
             events:RegisterEvent(name)
         end
+        events:RegisterEvent("ACHIEVEMENT_EARNED")
+        events:RegisterEvent("CRITERIA_UPDATE")
+        events:RegisterEvent("RECEIVED_ACHIEVEMENT_LIST")
         if ns.db.liveSelection then ns.chain = ns.WoW.RestoreQuestLine(ns.db.liveSelection) or ns.chain end
         ns.WoW.ResetWarnings()
         ns.Refresh()
@@ -250,6 +303,10 @@ events:SetScript("OnEvent", function(_, event, ...)
         elseif event == "QUEST_DATA_LOAD_RESULT" then
             ns.WoW.OnQuestDataLoadResult(...)
             ns.WoW.OnQuestLookupDataLoadResult(...)
+        elseif event == "ACHIEVEMENT_EARNED" or event == "CRITERIA_UPDATE" then
+            ns.WoW.OnNameSearchAchievementUpdate()
+        elseif event == "RECEIVED_ACHIEVEMENT_LIST" then
+            ns.WoW.OnNameSearchAchievementUpdate(true)
         elseif event == "PLAYER_LOGIN" or event == "ZONE_CHANGED_NEW_AREA" or event == "PLAYER_ENTERING_WORLD" then
             ns.WoW.DiscoverZone(event == "PLAYER_LOGIN")
         elseif event == "QUEST_DETAIL" then ns.WoW.OnDetail(...)

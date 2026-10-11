@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0 — 2026-10-11
+
+- Added **Name** / **Suchen** alongside quest-ID lookup using client-supplied line names. Multiple matching lines with loaded membership are offered for explicit selection; **Zur Zonenliste** returns to zone selection.
+- Added bounded, session-only search through achievement and criteria names, including documented subachievement links and current completion information. These matches remain informational because no reliable criterion-to-quest mapping was established; no global quest catalogue or bundled quest/achievement facts are introduced.
+- Added **Bildschirmwarnung: An/Aus** as an independent saved main-window button. It controls the centered box separately from **Chatwarnung: An/Aus**, defaults to **An** and immediately hides any visible box when disabled. Both settings survive reload/removal; reset enables both. Changing the switches does not replay old activity.
+- Kept the larger underlined title, section rules, quest dividers and subtle status text, including the existing green/yellow quest colors.
+- Added purpose comments above addon Lua functions and anonymous callbacks, and completed residual naming cleanup across the active project and its directory.
+
+Validation: the integrated offline suite passes 152 counted behavioral cases (117 existing, 12 screen-warning, 13 name-search and ten UI cases), separate banner/startup/fresh-reload/missing-API checks and 54 static guard cases. All 11 addon Lua files load under Lua 5.1; 26 C API members are reviewed, with zero forbidden game API attempts or invalid IDs. The 14-file v0.5.0 addon ZIP builds successfully with the matching version tag. Actual client name-search coverage, independent warning controls, layout and Lua/taint checks remain pending in [IN_GAME_TEST.md](docs/IN_GAME_TEST.md). The user explicitly authorized implementation, Git push and a new release on 2026-10-11.
+
+## 0.4.2 — 2026-10-09
+
+- Enlarged and underlined the main-window title while preserving its wording.
+- Added thin section rules after the buttons and before the quest list, and subtle dividers between quest rows.
+- Made the progress status smaller and less prominent directly below each quest title, preserving the existing status colors, title text and quest actions.
+- Retained window sizes, schema 7 preferences and saved chat-warning choices.
+
+Validation: `scripts/check.cmd` passes 117 counted behavioral cases, separate banner-deadline/startup/reload/missing-API checks, 54 static guard cases and Lua 5.1 loading of all 10 addon files. The boundary covers 26 reviewed C API members, with zero forbidden game API attempts or invalid IDs. Existing regression assertions were adjusted for the control-row position and measured text height; the 13-file v0.4.2 addon ZIP was built successfully. The user's 0.4.1 screenshot confirms visible green completed/yellow accepted rows and the **Chatwarnung: Aus** label only. It does not establish chat-toggle/navigation behavior or the new layout. Actual 0.4.2 client layout and Lua/taint checks remain pending in docs/IN_GAME_TEST.md.
+
 ## 0.4.1 — 2026-10-09
 
 - Removed the duplicate activity-warning text sent to Blizzard's error frame. The prominent warning box remains the sole on-screen addon warning, with its existing duration and event deduplication.

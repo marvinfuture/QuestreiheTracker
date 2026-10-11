@@ -44,6 +44,22 @@ Reviewed on 2026-10-09 against Blizzard's generated API documentation and native
 
 The user's 0.4.0 screenshot establishes visible duplicate warning output, not a new quest-membership fact. In 0.4.1 the addon-owned banner is retained and its `UIErrorsFrame:AddMessage` duplicate is removed. A new default-on saved chat preference affects only local activity-warning output; banner delivery, warning deduplication and existing data sources are unchanged. Successful offline stubs cannot establish real client navigation, layout or taint behavior.
 
+## Name search and achievement information in 0.5.0
+
+Reviewed on 2026-10-11 against the following pinned Blizzard export sources at commit `09b9db7948abc9b9648dedaab51eb0cf3ee67b31`:
+
+- [Native achievement UI](https://github.com/Gethe/wow-ui-source/blob/09b9db7948abc9b9648dedaab51eb0cf3ee67b31/Interface/AddOns/Blizzard_AchievementUI/Mainline/Blizzard_AchievementUI.lua): category enumeration through `GetCategoryList`, `GetCategoryNumAchievements` and `GetAchievementInfo(categoryID, index)`; criteria reads through `GetAchievementNumCriteria` / `GetAchievementCriteriaInfo`; linked achievement criteria use their typed asset ID as an achievement ID. Names and completion are supplied by the client.
+- [Blizzard constants](https://github.com/Gethe/wow-ui-source/blob/09b9db7948abc9b9648dedaab51eb0cf3ee67b31/Interface/AddOns/Blizzard_FrameXMLBase/Constants.lua): `CRITERIA_TYPE_ACHIEVEMENT = 8` identifies linked subachievements. Only that established type is traversed, with duplicate/cycle protection.
+- [Achievement API documentation](https://github.com/Gethe/wow-ui-source/blob/09b9db7948abc9b9648dedaab51eb0cf3ee67b31/Interface/AddOns/Blizzard_APIDocumentationGenerated/AchievementInfoDocumentation.lua): achievement-list and criteria update events support refreshing session discovery and reading current completion for matching information.
+
+The search combines known client-supplied line names from the session cache with achievement and criteria name matches. A line result is selectable only when its client-supplied membership is loaded and nonempty. Achievement/criteria matches show parent context and completion as nonselectable information. Finding a matching achievement title or criterion does not establish that it belongs to a line, names all its quests or describes a complete prerequisite graph.
+
+No reliable primary-source mapping from other criterion asset types to quest IDs was established. The implementation therefore never treats an arbitrary criterion asset as a quest ID or probes it through a quest API. Linked achievement IDs remain achievement IDs. No fixed real quest IDs, achievement IDs, Trauerhöhe facts or name-to-membership table are added.
+
+Discovery is session-only and bounded: each active-search index continuation has budgets of 100 achievement reads, 500 criteria reads and 100 categories, with ceilings of 6,000 achievements and 30,000 criteria; at most 200 sorted hits are returned. Missing APIs/data or limits yield partial/unsupported results. Returned matching completion is read again through additional guarded calls rather than saved as progress. A matching achievement title also exposes its direct criteria. The finite scan stops after completion or cancellation, and no new permanent polling timer is introduced. These limits and the supplied map subset prevent a claim of complete global coverage.
+
+The independent screen-warning switch in 0.5.0 adds no data source or gameplay action. It suppresses only the addon-owned banner; chat output, activity detection and deduplication retain their independent behavior.
+
 ## Uncertainty boundaries
 
 A returned list establishes membership and display order, not a complete prerequisite graph, optionality or global catalogue. Nodes mark requirements and optionality unknown. No dependency edges, route coordinates or mandatory classifications are created. Account-completed map metadata does not establish this character's completion.

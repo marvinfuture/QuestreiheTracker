@@ -5,22 +5,27 @@ ns.LiveData = LiveData
 -- Blizzard-generated documentation, not another addon's implementation.
 LiveData.source = "https://github.com/Gethe/wow-ui-source/blob/09b9db7948abc9b9648dedaab51eb0cf3ee67b31/Interface/AddOns/Blizzard_APIDocumentationGenerated/QuestLineInfoDocumentation.lua"
 
+-- Accept only positive finite integers so synthetic IDs never reach Blizzard APIs.
 function LiveData.IsID(value)
     return type(value) == "number" and value > 0 and value < math.huge and value == math.floor(value)
 end
 
+-- Combine the map and Blizzard line IDs into a stable runtime cache key.
 function LiveData.Key(mapID, questLineID)
     return "blizzard:" .. mapID .. ":" .. questLineID
 end
 
+-- Create the empty selection used until the player chooses a quest line.
 function LiveData.Empty()
     return { id = "none", empty = true, name = ns.L.NO_SELECTION, sections = {} }
 end
 
+-- Require visible text before treating a Blizzard response as a known name.
 function LiveData.IsName(value)
     return type(value) == "string" and value:find("%S") ~= nil
 end
 
+-- Create a loading placeholder with validated IDs and explicit name provenance.
 function LiveData.Pending(mapID, questLineID, name)
     if not LiveData.IsID(mapID) or not LiveData.IsID(questLineID) then return nil end
     local nameKnown = LiveData.IsName(name)
@@ -34,6 +39,7 @@ function LiveData.Pending(mapID, questLineID, name)
     }
 end
 
+-- Validate and deduplicate Blizzard membership into display rows with source references.
 -- Membership and display order do not prove prerequisites or optionality.
 function LiveData.Build(mapID, info, questIDs)
     if not LiveData.IsID(mapID) or type(info) ~= "table" or not LiveData.IsID(info.questLineID)

@@ -2,6 +2,7 @@ local _, ns = ...
 local WoW = { requested = {}, failedRequests = {}, offers = {} }
 ns.WoW = WoW
 
+-- Read an optional game API safely, returning nil when it is absent or fails.
 function WoW.Call(fn, ...)
     if type(fn) ~= "function" then return nil end
     local ok, value = pcall(fn, ...)
@@ -9,6 +10,7 @@ function WoW.Call(fn, ...)
     return nil
 end
 
+-- Prefer the localized game title, then fall back to stored text or the quest ID.
 function WoW.Title(quest)
     if not ns.LiveData.IsID(quest.questID) then return quest.title end
     local title = WoW.Call(C_QuestLog and C_QuestLog.GetTitleForQuestID, quest.questID)
@@ -17,6 +19,7 @@ function WoW.Title(quest)
     return string.format(ns.L.UNKNOWN_TITLE, quest.questID)
 end
 
+-- Request metadata once per real quest ID and remember failures for explicit retries.
 function WoW.RequestTitle(id)
     if WoW.requested[id] or not ns.LiveData.IsID(id) then return end
     WoW.requested[id] = true
@@ -24,17 +27,20 @@ function WoW.RequestTitle(id)
     if type(fn) ~= "function" or not pcall(fn, id) then WoW.failedRequests[id] = true end
 end
 
+-- Record the outcome of a metadata request already issued by this addon.
 function WoW.OnQuestDataLoadResult(id, success)
     if not ns.LiveData.IsID(id) or not WoW.requested[id] then return end
     WoW.failedRequests[id] = success == false or nil
 end
 
+-- Clear failed request markers so the next explicit refresh can request those titles again.
 function WoW.RetryQuestTitles()
     -- Retry only on an explicit refresh, never in a failure-event loop.
     for id in pairs(WoW.failedRequests) do WoW.requested[id] = nil end
     WoW.failedRequests = {}
 end
 
+-- Read live completion, acceptance, and current NPC offers for every real member quest.
 function WoW.Snapshot(chain)
     local snapshot = { completed = {}, active = {}, offered = {} }
     if not chain then return snapshot end
@@ -54,6 +60,7 @@ function WoW.Snapshot(chain)
     return snapshot
 end
 
+-- Replace the offer cache with non-ignored quests currently offered by the open NPC.
 function WoW.SetGossipOffers()
     WoW.offers = {}
     for _, info in ipairs(WoW.Call(C_GossipInfo and C_GossipInfo.GetAvailableQuests) or {}) do
@@ -63,10 +70,12 @@ function WoW.SetGossipOffers()
     end
 end
 
+-- Discard NPC offers when their current interaction context is no longer valid.
 function WoW.ClearOffers()
     WoW.offers = {}
 end
 
+-- Validate an accepted regular quest, retain existing watches, and set Blizzard navigation.
 function WoW.WatchQuest(questID)
     -- Only an explicit quest-row click calls this. Keep existing watches and
     -- make the clicked accepted regular quest Blizzard's navigation target.
@@ -95,17 +104,21 @@ function WoW.WatchQuest(questID)
         if not ns.LiveData.IsID(limit) then return false, "UNAVAILABLE" end
         if count >= limit then return false, "LIMIT" end
         -- AddQuestWatch returns a success flag; SetSuperTrackedQuestID does not.
+        -- Protect the watch mutation while preserving Blizzard's success result.
         local ok, wasWatched = pcall(function() return C_QuestLog.AddQuestWatch(questID) end)
         if not ok or wasWatched ~= true then return false, "FAILED" end
     end
+    -- Protect the navigation mutation before verifying the resulting tracked quest.
     local ok = pcall(function() C_SuperTrack.SetSuperTrackedQuestID(questID) end)
     if not ok or WoW.SuperTrackedQuestID() ~= questID then return false, "NAVIGATION_FAILED" end
     return true, alreadyWatched and "ALREADY_WATCHED" or "WATCHED"
 end
 
+-- Merge regular and world-quest watches while retaining prior lists on unavailable reads.
 local function readWatches(previous)
     previous = previous or {}
     local watched, lists = {}, {}
+    -- Build one validated watch set, falling back to its previous set on API failure.
     local function read(countFn, idFn, old)
         if type(countFn) ~= "function" or type(idFn) ~= "function" then return old or {} end
         local count = WoW.Call(countFn)
@@ -126,18 +139,21 @@ local function readWatches(previous)
     return watched, lists
 end
 
+-- Require a loaded nonempty selection before comparing activity against its membership.
 local function warningSelection()
     local chain = ns.chain
     return chain and not chain.empty and not chain.loading
         and type(chain.sections) == "table" and #chain.sections > 0
 end
 
+-- Read the current navigation quest and preserve the previous value on an API error.
 local function readNavigation(previous)
     local id, status = WoW.SuperTrackedQuestID()
     if status == "READY" or status == "NO_TRACKED" then return id end
     return previous
 end
 
+-- Establish watch baselines and clear activity history for a fresh warning context.
 function WoW.ResetWarnings()
     -- Existing watched quests are a baseline, not new user actions.
     local watched, lists = readWatches()
@@ -145,6 +161,7 @@ function WoW.ResetWarnings()
         pendingAccepted = {}, accepted = {} }
 end
 
+-- Record acceptance, removal, watch, and navigation changes before the coalesced refresh.
 function WoW.OnWarningEvent(event, ...)
     if not WoW.warnings then WoW.ResetWarnings() end
     local state = WoW.warnings
@@ -171,6 +188,7 @@ function WoW.OnWarningEvent(event, ...)
     end
 end
 
+-- Compare live activity with the baseline and warn once per new unrelated quest.
 function WoW.WarnActivities()
     if not warningSelection() then WoW.ResetWarnings(); return end
     if not WoW.warnings then WoW.ResetWarnings() end
@@ -230,6 +248,7 @@ function WoW.WarnActivities()
     end
 end
 
+-- Record a real NPC quest offer while excluding item-started and invalid interactions.
 function WoW.OnDetail(startItemID)
     WoW.ClearOffers()
     if not warningSelection() then return end

@@ -2,10 +2,12 @@ local _, ns = ...
 local Model = {}
 ns.Model = Model
 
+-- Recognize real quest IDs without relying on any game API.
 local function isID(value)
     return type(value) == "number" and value > 0 and value < math.huge and value == math.floor(value)
 end
 
+-- Flatten sections in display order and index real quest IDs for membership checks.
 function Model.Flatten(chain)
     local quests, byID = {}, {}
     for _, section in ipairs(chain.sections or {}) do
@@ -17,11 +19,13 @@ function Model.Flatten(chain)
     return quests, byID
 end
 
+-- Test exact membership against the line's flattened quest ID index.
 function Model.Contains(chain, questID)
     local _, byID = Model.Flatten(chain)
     return byID[questID] ~= nil
 end
 
+-- Report malformed sections, invalid or duplicate IDs, and unexpected empty lines.
 function Model.Validate(chain)
     if type(chain) ~= "table" or type(chain.id) ~= "string"
         or type(chain.name) ~= "string" or type(chain.sections) ~= "table" then
@@ -47,6 +51,7 @@ function Model.Validate(chain)
     return errors
 end
 
+-- Translate explicit completion and acceptance facts into a conservative progress state.
 function Model.ProgressStatus(completed, active)
     if completed == true then return "COMPLETED" end
     if active == true then return "ACTIVE" end
@@ -54,6 +59,7 @@ function Model.ProgressStatus(completed, active)
     return "UNKNOWN"
 end
 
+-- Derive row states, active quests, uncertain next steps, and totals from a snapshot.
 -- Runtime membership and order never establish prerequisites or optionality.
 function Model.Evaluate(chain, snapshot)
     local result = { rows = {}, byID = {}, active = {}, next = {}, completed = 0, total = 0 }

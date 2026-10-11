@@ -65,6 +65,9 @@ lua.execute((root / "tests" / "activity_warnings.lua").read_text(encoding="utf-8
 lua.execute((root / "tests" / "selection_controls.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "warning_banner.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "warning_settings.lua").read_text(encoding="utf-8"))
+lua.execute((root / "tests" / "screen_warning_settings.lua").read_text(encoding="utf-8"))
+lua.execute((root / "tests" / "name_search.lua").read_text(encoding="utf-8"))
+lua.execute((root / "tests" / "name_search_ui.lua").read_text(encoding="utf-8"))
 assert lua.globals().Mock.mutationCount == 0, "A game mutation API was attempted during tests"
 assert lua.globals().Mock.invalidIDCalls == 0, "An invalid ID was passed to a game API"
 
@@ -90,7 +93,8 @@ QuestreihenTrackerDB = { selectedChain = key,
         options = { point = "TOPRIGHT", relativePoint = "TOPRIGHT", x = -110, y = -60 },
         link = { point = "BOTTOMLEFT", relativePoint = "BOTTOMLEFT", x = 75, y = 90 },
     },
-    completed = { [78743] = true }, titles = { [78743] = "Discarded saved title" }, chatWarnings = false }
+    completed = { [78743] = true }, titles = { [78743] = "Discarded saved title" },
+    chatWarnings = false, screenWarnings = false }
 Mock.mapInfos[2248] = { name = "Saved map test fixture" }
 Mock.questLinesByMap[2248] = {}
 Mock.onLineRequest = function(id)
@@ -106,6 +110,7 @@ assert(QuestreihenTrackerDB.liveSelection.name == nil and QuestreihenTrackerDB.c
 assert(QuestreihenTrackerDB.titles == nil and ns.result.completed == 0)
 assert(ns.db.chatWarnings == false, "Disabled chat warnings must survive startup migration")
 assert(ns.UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_OFF)
+assert(ns.db.screenWarnings == false and ns.UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_OFF)
 assert(ns.db.panelPositions.options == nil and ns.UI.Options == nil)
 assert(ns.UI.frame:GetWidth() == 820 and ns.UI.frame:GetHeight() == 930)
 local point, _, relativePoint, x, y = ns.UI.frame:GetPoint()
@@ -162,6 +167,7 @@ cleared_lua.globals().TEST_NS = cleared_namespace
 cleared_lua.globals().QuestreihenTrackerDB = cleared_lua.table_from({
     "selectedChain": startup_namespace.db.selectedChain,
     "chatWarnings": startup_namespace.db.chatWarnings,
+    "screenWarnings": startup_namespace.db.screenWarnings,
     "minimapAngle": startup_namespace.db.minimapAngle,
     "size": cleared_lua.table_from({"width": startup_namespace.db.size.width,
                                     "height": startup_namespace.db.size.height}),
@@ -180,6 +186,8 @@ assert(ns.chain.empty and ns.db.selectedChain == "none" and ns.db.liveSelection 
 assert(ns.UI.frame:GetWidth() == 820 and ns.UI.frame:GetHeight() == 930)
 assert(ns.db.minimapAngle == 135 and ns.db.position.x == 42 and ns.db.position.y == -28)
 assert(ns.db.chatWarnings == false, "Disabled chat warnings must survive a fresh reload")
+assert(ns.db.screenWarnings == false, "Disabled screen warnings must survive a fresh reload")
+assert(ns.UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_OFF)
 assert(ns.UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_OFF)
 ns.eventFrame.scripts.OnEvent(ns.eventFrame, "PLAYER_LOGIN")
 ns.eventFrame.scripts.OnEvent(ns.eventFrame, "QUESTLINE_UPDATE", false)
@@ -211,8 +219,9 @@ local ns = TEST_NS
 ns.eventFrame.scripts.OnEvent(ns.eventFrame, "ADDON_LOADED", "QuestreihenTracker")
 assert(ns.initialized and ns.chain.empty and ns.chain.id == "none")
 assert(ns.result.total == 0 and ns.result.completed == 0 and not ns.result.done)
-assert(ns.db.selectedChain == "none" and ns.db.liveSelection == nil and ns.db.schemaVersion == 7)
+assert(ns.db.selectedChain == "none" and ns.db.liveSelection == nil and ns.db.schemaVersion == 8)
 assert(ns.db.chatWarnings == true, "Legacy preferences must retain default-on chat warnings")
+assert(ns.db.screenWarnings == true, "Legacy preferences must retain default-on screen warnings")
 assert(ns.db.completed == nil and ns.db.titles == nil and ns.db.warnUnrelated == nil)
 assert(ns.db.autoAccept == nil and ns.db.autoAbandon == nil)
 ns.Slash("zone"); Mock.Flush()

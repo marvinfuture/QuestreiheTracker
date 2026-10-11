@@ -29,6 +29,7 @@ SAFE_GLOBALS = {
     "QuestreihenTrackerDB", "SLASH_QUESTREIHENTRACKER1", "UnitFactionGroup",
     "UnitExists", "GetQuestID", "GetBuildInfo", "InCombatLockdown",
     "GetAchievementInfo", "GetAchievementNumCriteria", "GetAchievementCriteriaInfo",
+    "GetCategoryList", "GetCategoryNumAchievements", "CRITERIA_TYPE_ACHIEVEMENT",
     "GetCursorPosition",
     "GetQuestUiMapID",
     "GetTasksTable", "GetTaskInfo",

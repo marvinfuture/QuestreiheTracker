@@ -21,7 +21,7 @@ local function widget(kind)
     end })
 end
 for _, method in ipairs({ "SetFrameStrata", "SetClampedToScreen",
-    "SetBackdrop", "SetFontObject", "SetJustifyH", "SetJustifyV",
+    "SetBackdrop", "SetJustifyH", "SetJustifyV",
     "SetAutoFocus", "ClearFocus", "SetFocus", "HighlightText", "EnableMouse",
     "SetStatusBarTexture",
     "SetStatusBarColor", "SetMinMaxValues", "SetAllPoints", "SetColorTexture",
@@ -86,6 +86,19 @@ function methods:SetScale(value) self.scale = value end
 function methods:SetValue(value) self.value = value end
 function methods:SetVerticalScroll(value) self.scroll = value end
 function methods:SetText(value) assert(type(value) == "string"); self.textValue = value end
+function methods:SetFontObject(value) self.fontObject = value end
+function methods:GetStringHeight()
+    -- Approximate fixture metrics only; real-client glyph wrapping is a manual check.
+    local text = self:GetText() or ""
+    if text == "" then return 0 end
+    local lineHeight = self.fontObject == "GameFontHighlightSmall" and 11 or 14
+    local capacity = math.max(1, math.floor(self:GetWidth() / 7))
+    local lines = 0
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+        lines = lines + math.max(1, math.ceil(#line / capacity))
+    end
+    return lines * lineHeight
+end
 function methods:SetNumeric(value) self.numeric = value end
 function methods:SetMaxLetters(value) self.maxLetters = value end
 function methods:GetText() return self.textValue end
