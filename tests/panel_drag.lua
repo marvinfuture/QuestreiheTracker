@@ -36,6 +36,7 @@ test("all four windows register left-button dragging and move their own frame", 
         local mainStarts, mainStops = count(ns.UI.frame, "startMovingCount"), count(ns.UI.frame, "stopCount")
         frame.scripts.OnDragStart(frame)
         assert(frame.moving == true and count(frame, "startMovingCount") == starts + 1)
+        frame:ClearAllPoints()
         frame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 120, -80)
         frame.scripts.OnDragStop(frame)
         assert(frame.moving == false and count(frame, "stopCount") == stops + 1)
@@ -52,6 +53,7 @@ test("each popup saves its own anchor without changing tracker geometry", functi
     for index, item in ipairs(panels()) do
         local expected = { point = "BOTTOMRIGHT", relativePoint = "BOTTOMRIGHT", x = -80 * index, y = 50 * index }
         item.frame.scripts.OnDragStart(item.frame)
+        item.frame:ClearAllPoints()
         item.frame:SetPoint(expected.point, UIParent, expected.relativePoint, expected.x, expected.y)
         item.frame.scripts.OnDragStop(item.frame)
         local stored = ns.db.panelPositions[item.key]
@@ -72,6 +74,7 @@ test("closing a dragged popup stops and saves that popup only", function()
         local frame = item.frame
         local expected = { point = "LEFT", relativePoint = "LEFT", x = 25 * index, y = -35 * index }
         frame.scripts.OnDragStart(frame)
+        frame:ClearAllPoints()
         frame:SetPoint(expected.point, UIParent, expected.relativePoint, expected.x, expected.y)
         local stops, mainStops = count(frame, "stopCount"), count(ns.UI.frame, "stopCount")
         frame:Hide()
@@ -89,6 +92,7 @@ test("saved popup positions are isolated validated preferences and reset to defa
     local saved = ns.ReadConfig(ns.db)
     for _, item in ipairs(panels()) do
         assert(saved.panelPositions[item.key] ~= ns.db.panelPositions[item.key])
+        item.frame:ClearAllPoints()
         item.frame:SetPoint("CENTER")
     end
     ns.db, QuestreihenTrackerDB = saved, saved

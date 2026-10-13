@@ -51,7 +51,8 @@ local function requestMap(mapID, force)
         if type(info) == "table" and type(info.name) == "string" then map.name = info.name end
     end
     if not supported() then map.error = "UNSUPPORTED"; return map end
-    if force or not map.requested then
+    if force or not map.requested or map.selectionOnly then
+        map.selectionOnly = nil
         -- Set state first: Blizzard can dispatch events during a request.
         map.requested, map.loaded, map.error, map.requestFailed = true, false, nil, false
         map.requesting = true
@@ -67,9 +68,30 @@ end
 function WoW.DiscoverZone(force)
     state.currentMapID = currentZone()
     if state.currentMapID then requestMap(state.currentMapID, force) end
+    if state.browseMapID and state.browseMapID ~= state.currentMapID then
+        requestMap(state.browseMapID, force)
+    end
     if force and ns.chain and ns.chain.runtime and ns.chain.mapID ~= state.currentMapID then
         requestMap(ns.chain.mapID, true)
     end
+end
+
+-- Select a session-only browsing context; nil follows the player's current zone.
+function WoW.SetBrowseZone(mapID)
+    if mapID ~= nil then
+        if not LiveData.IsID(mapID) then return false, "INVALID_MAP" end
+        local info = mapInfo(mapID)
+        if type(info) ~= "table" then return false, "ERROR" end
+        if Enum and Enum.UIMapType and info.mapType ~= Enum.UIMapType.Zone then
+            return false, "INVALID_MAP"
+        end
+    else
+        state.currentMapID = currentZone()
+    end
+    state.browseMapID = mapID
+    local map = requestMap(mapID or state.currentMapID)
+    if not map then return true, "NO_MAP" end
+    return true, map.error or "READY"
 end
 
 -- Find a runtime line by its stable ID across all requested map caches.
@@ -168,9 +190,9 @@ local function activeLineInfo(questID, mapID, questMapID)
     if type(info) == "table" and LiveData.IsID(info.questLineID) then return info end
 end
 
--- Supplement current-zone discoveries with verified lines from accepted member quests.
+-- Supplement current or explicitly browsed zones with verified accepted member lines.
 local function addActiveLines(map, chains, seen)
-    if map.mapID ~= state.currentMapID
+    if (map.mapID ~= state.currentMapID and map.mapID ~= state.browseMapID)
         or type(C_QuestLine and C_QuestLine.GetQuestLineInfo) ~= "function" then return end
     local candidates, visited = {}, {}
     -- Deduplicate valid quest IDs collected from quest-log and map entries.
@@ -226,6 +248,12 @@ end
 
 -- Rebuild map choices from game data while retaining verified selected membership and names.
 local function readMap(map, selected)
+    -- A cleared cache retains only independently verified selections/results.
+    -- Normal refreshes must not repopulate unrelated map discoveries after clearing.
+    if map.selectionOnly then
+        resolveSelectedName(map, selected)
+        return
+    end
     if map.needsRequest then
         map.needsRequest = nil
         requestMap(map.mapID, true)
@@ -273,7 +301,7 @@ local function readMap(map, selected)
         end
     end
     -- Available map pins are not a complete list of accepted quest lines.
-    -- Supplement them with exact, current-zone associations from the quest log.
+    -- Supplement them with exact associations relevant to the current or browsed zone.
     addActiveLines(map, chains, seen)
     map.chains = chains
     if #infos > 0 then map.loaded = true end
@@ -311,17 +339,16 @@ end
 -- Refresh the current zone, selected map, and maps used by an active reverse lookup.
 function WoW.ReadQuestLines()
     local selected = ns.chain and ns.chain.runtime and ns.chain or nil
-    local map = state.maps[state.currentMapID]
-    if map then readMap(map, selected) end
-    if selected and selected.mapID ~= state.currentMapID then
-        local selectedMap = state.maps[selected.mapID]
-        if selectedMap then readMap(selectedMap, selected) end
-    end
+    local relevant = {}
+    if state.currentMapID then relevant[state.currentMapID] = true end
+    if state.browseMapID then relevant[state.browseMapID] = true end
+    if selected then relevant[selected.mapID] = true end
     for mapID in pairs(WoW.questLookup and WoW.questLookup.maps or {}) do
-        if mapID ~= state.currentMapID and (not selected or mapID ~= selected.mapID) then
-            local lookupMap = state.maps[mapID]
-            if lookupMap then readMap(lookupMap, selected) end
-        end
+        relevant[mapID] = true
+    end
+    for mapID in pairs(relevant) do
+        local map = state.maps[mapID]
+        if map then readMap(map, selected) end
     end
 end
 
@@ -331,20 +358,22 @@ function WoW.OnQuestLineUpdate(requestRequired)
     -- Restoration can dispatch this event before Core assigns the selection.
     for mapID, map in pairs(state.maps) do if map.requesting then relevant[mapID] = true end end
     if state.currentMapID then relevant[state.currentMapID] = true end
+    if state.browseMapID then relevant[state.browseMapID] = true end
     if ns.chain and ns.chain.runtime then relevant[ns.chain.mapID] = true end
     for mapID in pairs(WoW.questLookup and WoW.questLookup.maps or {}) do relevant[mapID] = true end
     -- Name discovery requests distant maps too; the unlabelled event refreshes their caches.
     for mapID in pairs(WoW.nameDiscovery and WoW.nameDiscovery.maps or {}) do relevant[mapID] = true end
     for mapID in pairs(relevant) do
-        if requestRequired == true and state.maps[mapID] then state.maps[mapID].needsRequest = true
+        if requestRequired == true and state.maps[mapID] and not state.maps[mapID].selectionOnly then
+            state.maps[mapID].needsRequest = true
         elseif state.maps[mapID] then state.maps[mapID].loaded = true end
     end
 end
 
 -- Return current-zone choices with a localized-display status and zone name.
-function WoW.ZoneQuestLines()
+local function choices(mapID)
     if not supported() then return {}, "UNSUPPORTED", nil end
-    local map = state.maps[state.currentMapID]
+    local map = state.maps[mapID]
     if not map then return {}, "NO_MAP", nil end
     local status = map.error or (#map.chains > 0 and "READY" or (map.loaded and "EMPTY" or "LOADING"))
     if not map.error and #map.chains > 0 then
@@ -353,4 +382,21 @@ function WoW.ZoneQuestLines()
         if not ready then status = "LOADING" end
     end
     return map.chains, status, map.name
+end
+
+-- Preserve the original current-zone adapter independently of the dropdown selection.
+function WoW.ZoneQuestLines()
+    return choices(state.currentMapID)
+end
+
+-- Return choices for the explicit zone or for the automatically followed current zone.
+function WoW.BrowseQuestLines()
+    local mapID = state.browseMapID or state.currentMapID
+    local chains, status, name = choices(mapID)
+    -- Clearing quest data does not erase the identity of the chosen zone.
+    if not name and LiveData.IsID(mapID) then
+        local info = mapInfo(mapID)
+        if type(info) == "table" and LiveData.IsName(info.name) then name = info.name end
+    end
+    return chains, status, name
 end

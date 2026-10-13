@@ -25,7 +25,7 @@ for _, method in ipairs({ "SetFrameStrata", "SetClampedToScreen",
     "SetAutoFocus", "ClearFocus", "SetFocus", "HighlightText", "EnableMouse",
     "SetStatusBarTexture",
     "SetStatusBarColor", "SetMinMaxValues", "SetAllPoints", "SetColorTexture",
-    "ClearAllPoints", "SetOwner" }) do
+    "SetOwner" }) do
     methods[method] = function() end
 end
 function methods:SetBackdropColor(...) self.backdropColor = { ... } end
@@ -75,13 +75,22 @@ function methods:StopMovingOrSizing()
     self.sizing, self.moving = false, false
     self.stopCount = (rawget(self, "stopCount") or 0) + 1
 end
-function methods:SetPoint(point, _, relativePoint, x, y)
+function methods:ClearAllPoints() self.points, self.point = {}, nil end
+function methods:SetPoint(point, relativeFrame, relativePoint, x, y)
     self.point = { point or "CENTER", relativePoint or point or "CENTER", x or 0, y or 0 }
+    self.point.relativeFrame = relativeFrame or rawget(self, "parent") or UIParent
+    self.points = rawget(self, "points") or {}
+    for index, existing in ipairs(self.points) do
+        if existing[1] == self.point[1] then self.points[index] = self.point; return end
+    end
+    self.points[#self.points + 1] = self.point
 end
-function methods:GetPoint()
-    local p = self.point or { "CENTER", "CENTER", 0, 0 }
-    return p[1], UIParent, p[2], p[3], p[4]
+function methods:GetPoint(index)
+    local p = self.points and self.points[index or 1] or self.point or { "CENTER", "CENTER", 0, 0 }
+    return p[1], p.relativeFrame or UIParent, p[2], p[3], p[4]
 end
+function methods:GetNumPoints() return #(rawget(self, "points") or {}) end
+function methods:SetButtonState(state, locked) self.buttonState, self.locked, self.buttonStateLocked = state, locked, locked end
 function methods:SetScale(value) self.scale = value end
 function methods:SetValue(value) self.value = value end
 function methods:SetMinMaxValues(minimum, maximum) self.minimum, self.maximum = minimum, maximum end
@@ -104,7 +113,7 @@ function methods:GetStringHeight()
 end
 function methods:SetNumeric(value) self.numeric = value end
 function methods:SetMaxLetters(value) self.maxLetters = value end
-function methods:GetText() return self.textValue end
+function methods:GetText() return rawget(self, "textValue") end
 function methods:SetTextColor(...) self.textColor = { ... } end
 function methods:SetTexture(value) self.textureValue = value end
 function methods:SetAtlas(value) self.atlasValue = value end
@@ -123,6 +132,31 @@ function methods:Enable() self.enabled = true end
 function methods:IsEnabled() return self.enabled end
 function methods:SetEnabled(value) if value then self:Enable() else self:Disable() end end
 function methods:SetScrollChild(value) self.scrollChild = value end
+local menuMethods = {}
+local function menuDescription(label)
+    return setmetatable({ label = label, entries = {} }, { __index = menuMethods })
+end
+function menuMethods:CreateRadio(label, selected, select, data)
+    local entry = menuDescription(label)
+    entry.kind, entry.selected, entry.select, entry.data = "Radio", selected, select, data
+    self.entries[#self.entries + 1] = entry
+    return entry
+end
+function menuMethods:CreateButton(label)
+    local entry = menuDescription(label)
+    entry.kind = "Button"
+    self.entries[#self.entries + 1] = entry
+    return entry
+end
+function menuMethods:CreateTitle(label) return self:CreateButton(label) end
+function menuMethods:SetScrollMode(height) self.scrollHeight = height end
+function methods:SetDefaultText(value) self.defaultText = value end
+function methods:OverrideText(value) self.overrideText = value end
+function methods:SetupMenu(generator) self.menuGenerator = generator; self:GenerateMenu() end
+function methods:GenerateMenu()
+    self.menu = menuDescription()
+    if self.menuGenerator then self.menuGenerator(self, self.menu) end
+end
 function methods:CreateFontString() local child = widget("FontString"); self.children[#self.children + 1] = child; return child end
 function methods:CreateTexture()
     local child = widget("Texture")
@@ -144,6 +178,11 @@ function methods:SetShown(value) if value then self:Show() else self:Hide() end 
 function CreateFrame(kind, name, parent, template)
     local value = widget(kind)
     value.parent = parent
+    value.template = template
+    if template == "SquareIconButtonTemplate" then
+        value.Icon = widget("Texture")
+        value.Icon.parent = value
+    end
     if template == "UIPanelScrollFrameTemplate" then
         value.ScrollBar = widget("Slider")
         value.ScrollBar.parent = value

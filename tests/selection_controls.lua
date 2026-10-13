@@ -167,7 +167,7 @@ test("restored filtered membership obtains the matching localized line name afte
     event("QUESTLINE_UPDATE", false); Mock.Flush()
     assert(ns.chain.name == "Localized delayed line fixture" and ns.chain.nameKnown)
     assert(ns.chain.nameSourceAPI == "C_QuestLine.GetQuestLineInfo")
-    assert(ns.UI.select:GetText():find(ns.chain.name, 1, true))
+    assert(ns.UI.chainTitle:GetText() == ns.chain.name and ns.UI.select:GetText() == ns.L.SEARCH)
     assert(ns.db.liveSelection.name == nil, "Runtime names must not become saved progress/data")
     assert(Mock.lineRequests[mapID] == 1)
 end)
@@ -217,6 +217,7 @@ end)
 test("independent member metadata repairs the header during failed map discovery without erasing cached data", function()
     for _, failure in ipairs({ "nil", "error", "unsupported" }) do
         reset()
+        ns.WoW.questLines.currentMapID = mapID
         Mock.questLinesByMap[mapID] = { { questLineID = lineID } }
         selectLoaded(nil)
         Mock.Flush()
@@ -231,7 +232,7 @@ test("independent member metadata repairs the header during failed map discovery
         assert(ns.chain.name == "Name despite discovery failure fixture" and ns.chain.nameKnown)
         assert(ns.chain.nameSourceAPI == "C_QuestLine.GetQuestLineInfo")
         assert(ns.result.total == 3 and ns.db.selectedChain == key and map.chains == choices)
-        assert(ns.UI.select:GetText():find(ns.chain.name, 1, true))
+        assert(ns.UI.chainTitle:GetText() == ns.chain.name and ns.UI.select:GetText() == ns.L.SEARCH)
         assert(next(Mock.lineRequests) == nil and #Mock.timers == 0)
     end
 end)
@@ -243,8 +244,8 @@ test("minimum-width header leaves both selection and removal buttons usable", fu
     assert(selectWidth > 100 and clearWidth >= 80 and selectWidth + clearWidth + 8 <= ns.UI.MIN_WIDTH - 32)
     local trackedWidth = ns.UI.trackedButton:GetWidth()
     assert(trackedWidth == ns.UI.MIN_WIDTH - 32)
-    assert(ns.UI.chatWarningsButton.parent == ns.UI.settings and ns.UI.chatWarningsButton:GetWidth() == 288)
-    assert(ns.UI.select.tooltip == ns.chain.name and ns.UI.clearButton:IsEnabled())
+    assert(ns.UI.chatWarningsButton.parent == ns.UI.settings and ns.UI.chatWarningsButton:GetWidth() == 368)
+    assert(ns.UI.chainTitle:GetText() == ns.chain.name and ns.UI.clearButton:IsEnabled())
     clickClear(); assertEmpty()
 end)
 
@@ -260,15 +261,21 @@ test("main tracked button resolves the current Blizzard navigation quest", funct
     button.scripts.OnClick(button, "LeftButton")
     Mock.Flush()
     assert(ns.chain.id == key and ns.db.liveSelection.questLineID == lineID)
-    assert(ns.UI.notice:GetText() == ns.L.BLIZZARD_NOTICE)
+    assert(ns.UI.notice:GetText() == ns.L.SEARCH_SUCCESS)
     assert(ns.UI.frame:IsShown() and (not ns.UI.selector or not ns.UI.selector:IsShown()))
+    clickClear()
+    assert(ns.chain.empty and ns.UI.searchFeedback == nil and ns.UI.notice:GetText() == ns.L.EMPTY_SELECTION)
+    ns.LookupQuest(78743)
+    assert(ns.UI.searchFeedback.opened)
+    ns.Slash("reset")
+    assert(ns.chain.empty and ns.UI.searchFeedback == nil and ns.UI.notice:GetText() == ns.L.EMPTY_SELECTION)
 end)
 
 test("main tracked button shows lookup failures without opening the selector", function()
     local button = ns.UI.trackedButton
     button.scripts.OnClick(button, "LeftButton")
     assert(ns.questLookup.status == "NO_TRACKED" and ns.chain.empty)
-    assert(ns.UI.notice:GetText() == ns.L.LOOKUP_NO_TRACKED)
+    assert(ns.UI.notice:GetText() == ns.L.SEARCH_FAILURE)
     assert(not ns.UI.selector or not ns.UI.selector:IsShown())
 end)
 

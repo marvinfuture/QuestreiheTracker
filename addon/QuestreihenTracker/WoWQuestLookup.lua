@@ -16,12 +16,17 @@ end
 
 -- Cache metadata outcomes and finish the matching in-flight quest lookup.
 function WoW.OnQuestLookupDataLoadResult(questID, success)
-    if not LiveData.IsID(questID) or type(success) ~= "boolean" then return end
+    if not LiveData.IsID(questID) or type(success) ~= "boolean" or not WoW.requested[questID] then return end
     dataResults[questID] = success
     local lookup = WoW.questLookup
     if lookup and lookup.questID == questID then
         lookup.dataFinished, lookup.dataFailed = true, success == false
     end
+end
+
+-- Discard private metadata outcomes alongside their addon-owned request markers.
+function WoW.PruneQuestLookupDataResults(keep)
+    for questID in pairs(dataResults) do if not keep[questID] then dataResults[questID] = nil end end
 end
 
 -- Resolve Blizzard's active quest navigation target with explicit unsupported and error states.
@@ -78,7 +83,7 @@ local function requestData(lookup)
     lookup.dataRequested = true
     local title = WoW.Call(C_QuestLog and C_QuestLog.GetTitleForQuestID, lookup.questID)
     if type(title) == "string" and title ~= "" then lookup.dataFinished = true; return end
-    if dataResults[lookup.questID] == false and not WoW.requested[lookup.questID] then
+    if not WoW.requested[lookup.questID] then
         dataResults[lookup.questID] = nil
     end
     if dataResults[lookup.questID] ~= nil then

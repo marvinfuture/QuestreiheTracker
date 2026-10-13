@@ -40,6 +40,89 @@ function WoW.RetryQuestTitles()
     WoW.failedRequests = {}
 end
 
+-- Retain only metadata markers belonging to still-needed runtime membership or queries.
+local function pruneMetadata(keep)
+    for id in pairs(WoW.requested) do if not keep[id] then WoW.requested[id] = nil end end
+    for id in pairs(WoW.failedRequests) do if not keep[id] then WoW.failedRequests[id] = nil end end
+    if WoW.PruneQuestLookupDataResults then WoW.PruneQuestLookupDataResults(keep) end
+end
+
+-- Collect real member IDs without retaining progress snapshots or Blizzard-owned data.
+local function keepMembers(keep, chain)
+    for _, section in ipairs(chain and chain.sections or {}) do
+        for _, quest in ipairs(section.quests or {}) do
+            if ns.LiveData.IsID(quest.questID) then keep[quest.questID] = true end
+        end
+    end
+end
+
+-- Release search payloads while retaining selection, needed browsing, and active requests.
+local function pruneSearch(manual)
+    local state, keepMaps, keepLines, keepIDs = WoW.questLines, {}, {}, {}
+    if not state then return end
+    if manual then
+        WoW.ResetNameDiscovery()
+        WoW.ResetQuestLookup()
+    else
+        if state.currentMapID then keepMaps[state.currentMapID] = true end
+        if state.browseMapID then keepMaps[state.browseMapID] = true end
+        for mapID in pairs(WoW.questLookup and WoW.questLookup.maps or {}) do keepMaps[mapID] = true end
+        local discovery = WoW.nameDiscovery
+        if discovery and not discovery.done then
+            for mapID in pairs(discovery.maps) do keepMaps[mapID] = true end
+            if discovery.activeQuest then keepIDs[discovery.activeQuest.questID] = true end
+        elseif discovery then WoW.ResetNameDiscovery() end
+    end
+    -- Result rows can own verified chains from distant maps until the panel is closed.
+    local function keepLine(chain)
+        if type(chain) ~= "table" or not chain.runtime or not ns.LiveData.IsID(chain.mapID) then return end
+        keepLines[chain.mapID] = keepLines[chain.mapID] or {}
+        keepLines[chain.mapID][chain.id] = chain
+        keepMembers(keepIDs, chain)
+    end
+    keepLine(ns.chain)
+    if not manual then
+        for _, result in ipairs(ns.nameLookup and ns.nameLookup.results or {}) do keepLine(result.chain) end
+        local lookup = WoW.questLookup
+        if lookup and ns.LiveData.IsID(lookup.questID) then keepIDs[lookup.questID] = true end
+    end
+    local retained, removed = {}, 0
+    for mapID, map in pairs(state.maps) do
+        if keepMaps[mapID] then
+            retained[mapID] = map
+            for _, chain in pairs(map.byID) do keepMembers(keepIDs, chain) end
+        elseif not keepLines[mapID] then removed = removed + 1 end
+    end
+    for mapID, lines in pairs(keepLines) do
+        local old = state.maps[mapID]
+        if not retained[mapID] then
+            -- Preserve the selected object itself; an immediate redraw can safely
+            -- read it without rediscovering a cleared map's unrelated choices.
+            local info = old or WoW.Call(C_Map and C_Map.GetMapInfo, mapID)
+            retained[mapID] = { mapID = mapID, name = type(info) == "table" and info.name or tostring(mapID),
+                chains = {}, byID = {}, selectionOnly = true, loaded = true }
+        end
+        for id, chain in pairs(lines) do retained[mapID].byID[id] = chain end
+    end
+    state.maps = retained
+    pruneMetadata(keepIDs)
+    if manual or not (WoW.nameDiscovery and not WoW.nameDiscovery.done) then
+        WoW.OnNameSearchAchievementUpdate(true)
+    end
+    if manual and WoW.ClearZoneCatalog then WoW.ClearZoneCatalog() end
+    return removed
+end
+
+-- Explicitly clear addon-owned search caches without changing selection or preferences.
+function WoW.ClearSearchCache()
+    return pruneSearch(true)
+end
+
+-- Automatically release unused search data after canceled or completed work.
+function WoW.PruneSearchCache()
+    return pruneSearch(false)
+end
+
 -- Read live completion, acceptance, and current NPC offers for every real member quest.
 function WoW.Snapshot(chain)
     local snapshot = { completed = {}, active = {}, offered = {} }

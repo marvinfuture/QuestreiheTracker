@@ -323,6 +323,7 @@ test("selector minimap window movement and reset only change preferences", funct
     click(ns.Minimap.button, "RightButton")
     assert(ns.UI.selector:IsShown() and ns.UI.Options == nil)
     ns.UI.frame.scripts.OnDragStart(ns.UI.frame)
+    ns.UI.frame:ClearAllPoints()
     ns.UI.frame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 40, -60)
     ns.UI.frame.scripts.OnDragStop(ns.UI.frame)
     assert(ns.db.position.x == 40 and ns.db.position.y == -60)

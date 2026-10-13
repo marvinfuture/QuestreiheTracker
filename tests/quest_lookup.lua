@@ -171,7 +171,7 @@ test("stale quest tracking is rejected for a waypoint or inactive quest mode", f
     local reads = Mock.trackedReads
     click(panel.trackedButton)
     assert(ns.questLookup.status == "NO_TRACKED" and Mock.trackedReads == reads)
-    assert(panel.lookupStatus:GetText() == ns.L.LOOKUP_NO_TRACKED)
+    assert(panel.lookupStatus:GetText() == ns.L.SEARCH_FAILURE)
     Mock.isSuperTrackingQuest = true
     Mock.highestPrioritySuperTrackingType = Enum.SuperTrackingType.UserWaypoint
     click(panel.trackedButton)
@@ -205,7 +205,7 @@ test("ID input accepts decimal digits only", function()
         local calls = Mock.calls
         click(panel.lookupButton)
         assert(ns.questLookup.status == "INVALID_ID" and Mock.calls == calls)
-        assert(panel.lookupStatus:GetText() == ns.L.LOOKUP_INVALID)
+        assert(panel.lookupStatus:GetText() == ns.L.SEARCH_FAILURE)
     end
 end)
 
@@ -297,7 +297,7 @@ test("unassociated completed replies leave selection intact and perform no idle 
     event("QUEST_DATA_LOAD_RESULT", questID, true)
     Mock.Flush()
     assert(ns.questLookup.status == "NOT_FOUND" and ns.chain.id == "none")
-    assert(ns.UI.selector.lookupStatus:GetText() == string.format(ns.L.LOOKUP_NOT_FOUND, questID))
+    assert(ns.UI.selector.lookupStatus:GetText() == ns.L.SEARCH_FAILURE)
     assert(#Mock.timers == 0 and Mock.lineRequests[mapID] == 1 and Mock.requests[questID] == 1)
     for index = 1, 4 do ns.Refresh() end
     assert(Mock.lineRequests[mapID] == 1 and Mock.requests[questID] == 1 and #Mock.timers == 0)

@@ -1,16 +1,16 @@
-# Questreihen Tracker — v0.5.2
+# Questreihen Tracker — v0.6.0
 
 A compact World of Warcraft Retail addon that displays one selected quest line and its character progress. **All quest lists, names and progress come from the WoW client at runtime.** No curated stories, quest database, external service or in-game library is shipped.
 
-The German interface has a movable, resizable quest list with a partly transparent background, a quest-line selector and a draggable minimap launcher. A larger underlined title, thin section rules and dividers between quest rows organize the main window; smaller status text sits directly below each quest title. The default tracker is 360 × 500 pixels; its minimum is 320 × 300. Left-click an accepted regular quest to observe it in Blizzard's quest tracker and make it the active navigation target. A gear button opens independent chat/screen warning settings and **Fenster geöffnet lassen**. Refreshing the list keeps its active quest in view.
+The German interface has a movable, resizable quest list with a partly transparent background, a search window and a draggable minimap launcher. **Suche** opens stacked quest-ID/name inputs and a zone dropdown. The selected line is a heading between the percentage bar and completed-quest count. Native Blizzard gear/close buttons and separated **An | Aus** settings organize the controls. The default tracker is 360 × 500 pixels; its minimum is 320 × 300. Left-click an accepted regular quest to observe it in Blizzard's quest tracker and make it the active navigation target. Refreshing the list keeps its active quest in view.
 
 ## Install and test
 
-1. Use the ZIP from [GitHub release v0.5.2](https://github.com/marvinfuture/QuestreiheTracker/releases/tag/v0.5.2) or the [local package](outputs/QuestreihenTracker-v0.5.2.zip). Extract it into `World of Warcraft/_retail_/Interface/AddOns/`.
+1. Use the ZIP from [GitHub release v0.6.0](https://github.com/marvinfuture/QuestreiheTracker/releases/tag/v0.6.0) or the [local package](outputs/QuestreihenTracker-v0.6.0.zip). Extract it into `World of Warcraft/_retail_/Interface/AddOns/`.
 2. Confirm the result is `AddOns/QuestreihenTracker/QuestreihenTracker.toc`, without an extra nested folder.
 3. Enable the addon and use `/reload`.
-4. Open it with `/qrt` or the minimap logo. Click **Questreihe auswählen**.
-5. Choose a supplied current-zone line, click **Verfolgte Quest** for the quest with Blizzard's navigation arrow, enter a **Quest-ID** and click **Anzeigen** / press Enter, or enter a line name in **Reihe** and click **Suchen**.
+4. Open it with `/qrt` or the minimap logo. Click **Suche**.
+5. Choose a supplied line for **Zone: Aktuelle Zone** or another zone, use **Questreihe zur verfolgten Quest** for the quest with Blizzard's navigation arrow, or enter a **Quest-ID** / **Questreihe** and click the adjacent **Suchen** button or press Enter. The name input has the hint **Handlungs- oder Geschichtsstrang**.
 
 There is no default story. An old saved curated selection becomes **Keine Questreihe ausgewählt**. A valid saved Blizzard map/line selection is restored from live data. Missing data remains loading or unresolved; it never activates an invented fallback list.
 
@@ -24,16 +24,20 @@ The TOC targets Interface **120100**, based on the previously inspected Retail 1
 | --- | --- |
 | `/qrt` / minimap left click | Show or hide the tracker |
 | `/qrt zone` / minimap right click | Open selection and request current-zone lists |
-| **Verfolgte Quest** in either window | Display the line of the current quest navigation target |
+| **Suche** | Open the search and zone-selection window |
+| **Questreihe zur verfolgten Quest** in either window | Display the full line of the current quest navigation target |
 | Gear button | Open or close the settings panel |
-| **Chatwarnung: An/Aus** in settings | Enable or disable local activity-warning messages in chat independently of the warning box |
-| **Bildschirmwarnung: An/Aus** in settings | Enable or disable the centered warning box independently of chat; switching off clears any visible box immediately |
-| **Fenster geöffnet lassen: An/Aus** in settings | Keep a deliberately opened tracker visible until explicitly closed, including after reload; **Aus** permits ordinary closing and disables reload reopening |
-| **Quest-ID** + **Anzeigen** / Enter | Display the whole supplied line containing the queried member quest |
-| **Reihe** + **Suchen** / Enter | Discover client-supplied lines by name; a unique verified full-name match opens the whole line after the finite search settles |
-| **Zur Zonenliste** | Leave name-search results and return to current-zone selection |
-| **Aktualisieren** | Request zone data again and retry failed titles |
+| **Chatwarnung**, separate **An / Aus** choices in settings | Enable or disable local activity-warning messages in chat independently of the warning box |
+| **Bildschirmwarnung**, separate **An / Aus** choices in settings | Enable or disable the centered warning box independently of chat; switching off clears any visible box immediately |
+| **Fenster geöffnet lassen**, separate **An / Aus** choices in settings | Keep a deliberately opened tracker visible until explicitly closed, including after reload; **Aus** permits ordinary closing and disables reload reopening |
+| **Quest-ID** + **Suchen** / Enter | Display the whole supplied line containing the queried member quest |
+| **Questreihe** + **Suchen** / Enter | Discover client-supplied lines by name; a unique verified full-name match opens the whole line after the finite search settles |
+| **Zur Zonenliste** | Leave name-search results and return to the selected zone list |
+| **Zone: Aktuelle Zone** or another dropdown choice | End a stale lookup and request that zone's list automatically; current-zone mode follows player zone changes |
+| Zone filter | Filter client-supplied zone names in the grouped dropdown without loading their quest lists |
+| **Suchcache leeren** | Cancel stale search work and free unused addon search caches while retaining the displayed line and settings |
 | **Entfernen** | Clear the loaded line and saved selection, keeping window geometry and Blizzard tracking |
+| X at the top right of each window | Close that window; the main-window X saves deliberate closure and the warning X dismisses the current banner |
 | Drag title / unused background | Move tracker, selector or copy-link dialog |
 | Drag bottom-right grip | Resize tracker |
 | Left-click an accepted regular quest row | Add its Blizzard quest watch if needed and select it as the active navigation target |
@@ -56,7 +60,7 @@ With a loaded quest line selected, a quest outside its returned membership produ
 - a quest is newly watched, including **Quest beobachten**;
 - a quest becomes the active navigation target, including selection in Blizzard's side tracker.
 
-**Chatwarnung: An/Aus** controls only these activity-warning messages in chat; **Bildschirmwarnung: An/Aus** controls only the centered warning box. Both choices are saved per character and default to **An**. Either output or both outputs can be disabled. Switching screen warnings off immediately clears a visible box and its expiry deadline. Diagnostics and click-failure messages remain available. Changing either switch does not replay existing warnings. Existing watched quests are baselined at login/selection to avoid a startup flood. Current area tasks and navigation are still checked. Event bursts are coalesced, and unchanged activity does not repeat a warning. Leaving an area, removing a watch or changing navigation allows a new warning on return. Temporary failed reads do not count as leaving.
+**Chatwarnung** with separate **An / Aus** choices controls only these activity-warning messages in chat; **Bildschirmwarnung** with separate **An / Aus** choices controls only the centered warning box. Both choices are saved per character and default to **An**. Either output or both outputs can be disabled. Switching screen warnings off immediately clears a visible box and its expiry deadline. Diagnostics and click-failure messages remain available. Changing either switch does not replay existing warnings. Existing watched quests are baselined at login/selection to avoid a startup flood. Current area tasks and navigation are still checked. Event bursts are coalesced, and unchanged activity does not repeat a warning. Leaving an area, removing a watch or changing navigation allows a new warning on return. Temporary failed reads do not count as leaving.
 
 A single enabled banner remains visible for twice the native error frame's visible-plus-fade duration (five seconds if those reads are unavailable). The addon no longer also writes this warning to Blizzard's error frame. The banner stays visible when the tracker is closed. Expiry, game refreshes and finite active-search batches share one cancellable timer; other game events continue refreshing promptly.
 
@@ -70,13 +74,17 @@ Rows show only **Abgeschlossen**, **Angenommen**, **Noch nicht angenommen** or *
 
 Current-zone selection combines available map candidates with accepted quests whose client-supplied line associations and membership can be verified for that zone. This includes active lines that Blizzard omits from its available candidates. It remains a client-supplied subset, not a complete zone catalogue; the reported Trauerhöhe omission needs a new client check.
 
-The header shows the localized line name supplied by Blizzard. If map discovery omits it, the adapter checks matching line metadata for known member quests. A known name survives temporary missing data within the session. If Blizzard supplies no name, **Questreihe &lt;ID&gt;** remains the fallback. Hover over the selection button to see the full name.
+Below the percentage bar, a separate heading shows the localized line name supplied by Blizzard, followed by the completed-quest count and quest list. The **Suche** button retains its label. If map discovery omits the name, the adapter checks matching line metadata for known member quests. A known name survives temporary missing data within the session. If Blizzard supplies no name, **Questreihe &lt;ID&gt;** remains the fallback. Long headings remain available in the full-name tooltip.
 
 Quest-ID lookup checks already loaded lists, then validates Blizzard's association against its returned membership. The ID may be the first quest or another member: lookup displays the whole `GetQuestLineQuests` list, not just that quest. The previous view stays visible during failure/loading. Later events can resolve a query; editing input, choosing another line, closing selection or **Entfernen** cancels it. Removing a line leaves the tracker empty after reload until another line is chosen. There is one coalescing timer and no permanent quest polling.
 
 Name search now discovers zone lines through the client's map hierarchy and verifies accepted quest-log associations across zones, alongside session-cached lines. It supports partial names and case-insensitive German umlauts. A unique exact full-name match with loaded membership opens the whole supplied line after finite discovery settles. Partial names and several exact line IDs remain explicit choices; an incomplete matching line prevents automatic selection. Search uses the line's own supplied name: **Trauerhöhe** is the requested line-name example, while **Zur Trauerhöhe** is the user's individual first-quest title, not an installed alias.
 
-Search results replace the zone chooser until **Zur Zonenliste** is clicked. Matching achievement and criteria names remain information with context and current completion; they cannot select or construct a line. Map, accepted-quest and achievement discovery are session-only and bounded, with loading/partial states for missing data or limits. No full global catalogue or successful actual-client Trauerhöhe lookup is guaranteed; that example still needs a client test. A complete supplied member list does not establish prerequisites or combine separate lines into a larger story.
+Search results replace the zone list until a zone is selected again or **Zur Zonenliste** is used. A native loading spinner beside the submitted action indicates active work; a check marks verified selectable lines. A successful automatic full-name selection opens the main window with confirmation. An unsuccessful or invalid search displays **Keine passende Questreihe gefunden. Bitte prüfe deine Eingabe.** directly in the window, without different typo/data-failure messages. Matching achievement and criteria names remain information with context and current completion; they cannot select or construct a line or earn a successful-line check. Map, accepted-quest and achievement discovery are session-only and bounded. No full global catalogue or successful actual-client Trauerhöhe lookup is guaranteed; that example still needs a client test. A complete supplied member list does not establish prerequisites or combine separate lines into a larger story.
+
+The zone dropdown places **Aktuelle Zone** first and groups other client-supplied zone maps by continent. A filter narrows zone names. Map metadata populates the choices; their quest lists are requested only when needed. Current-zone mode follows the player's zone changes. An explicitly selected other zone remains selected until another choice is made. Choosing a zone cancels obsolete name/ID lookup work so late responses cannot replace that view. The supplied map hierarchy can be incomplete and does not imply full quest-line coverage.
+
+Unused addon search data is pruned after cancellation and terminal searches, retaining the selected line and data still needed for the current query/results, current zone or explicitly browsed zone. **Suchcache leeren** releases unused search caches and stops stale searches while preserving the displayed line and preferences. Later searches request data again when needed. It affects only addon-owned session data; Blizzard's client cache and quest state are untouched. **Entfernen** still clears the displayed/saved selection.
 
 Schema 9 SavedVariables saves only selected map/line IDs, window geometry/positions, minimap position, independent `chatWarnings` / `screenWarnings` preferences, `keepWindowOpen` and the manual `windowOpen` choice. Quest lists, names, achievements and progress are not persisted. The three settings are validated booleans and default to enabled; missing or invalid `windowOpen` defaults to closed. Removed feature flags and old static selections are discarded. Prior default sizes adopt 360 × 500; other valid customized dimensions are preserved within that SavedVariables identity. `/qrt reset` restores default settings and closes the tracker; **Entfernen** preserves settings and the opening choice.
 
@@ -101,7 +109,8 @@ On this Windows workspace, `scripts/check.cmd` can use Codex's bundled Python ru
 | `WoWQuestLookup.lua` | Current navigation quest and verified line lookup |
 | `WoWNameDiscovery.lua` | Bounded runtime map-hierarchy and accepted-quest discovery for name search |
 | `WoWNameSearch.lua` | Name matching, result states and bounded achievement/criteria reads |
-| `UIHelpers.lua`, `UISettings.lua`, `UI.lua`, `Minimap.lua` | Compact native UI and saved settings controls |
+| `WoWZoneCatalog.lua` | Client-supplied zone metadata, continent grouping and filtering |
+| `UIHelpers.lua`, `UISelector.lua`, `UISettings.lua`, `UI.lua`, `Minimap.lua` | Compact native UI and saved settings controls |
 | `Locale.lua`, `Core.lua` | German text, preferences and events |
 
 [Data sources](docs/DATA_SOURCES.md), [gameplay action boundary](docs/GAME_ACTIONS.md) and [technical notes](TECHNICAL_NOTES.md) document the boundaries. The release ZIP contains the complete addon; local packages are also built in `outputs/`. Packaging does not publish or push. Git pushes and releases require the user's instruction; actual client results are recorded separately from offline checks.

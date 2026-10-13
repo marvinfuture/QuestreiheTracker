@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 — 2026-10-13
+
+- Added **Suchcache leeren** and automatic pruning of unused addon search data after cancellation/completion. The displayed line and settings are retained; **Entfernen** keeps its selection-removal function. Blizzard's client cache and quest state are unaffected, and late events cannot revive cancelled searches.
+- Changed the main action to fixed **Suche** and moved the selected line name into a heading between the percentage bar and completion count. Both main/search windows now use **Questreihe zur verfolgten Quest**.
+- Added native Blizzard gear/close controls, including X on search, settings, link and warning windows. Main-window X still saves deliberate closing; warning X dismisses the current banner.
+- Replaced combined setting labels with left-aligned names and clearly separated, mutually exclusive **An / Aus** choices.
+- Stacked quest-ID/name search inputs with corresponding **Suchen** actions; the name label is **Questreihe**, with **Handlungs- oder Geschichtsstrang** as its hint. Native loading spinners and verified-line checks show search state. Invalid or unmatched searches display **Keine passende Questreihe gefunden. Bitte prüfe deine Eingabe.** inside the window; achievement/criteria information alone never earns a line-success check.
+- Replaced manual zone refresh controls with **Zone: Aktuelle Zone** and a native dropdown. Current mode follows the player; explicit other zones stay selected. Client-supplied zone maps are grouped by continent and filtered by name, with quest lists loaded only on demand. Zone choices cancel obsolete searches.
+- Preserved full supplied membership through member quest-ID lookup and unique exact-name automatic opening, including success confirmation in the main window. No static quest/map catalogue, quest-title aliases or invented prerequisites were added.
+
+Validation: the integrated Lua 5.1 suite passes 223 counted behavioral cases (190 prior, 19 cache/zone, five main/settings and nine selector cases), four fresh-startup visibility combinations, the separate banner/startup/reload/missing-API checks and 54 static selftests. All 15 addon Lua files load; 28 C API members are reviewed, with zero forbidden mutations or invalid IDs. `python scripts/package.py --tag v0.6.0` builds the 18-file, 83,306-byte ZIP. Regressions include clearing successful-search feedback on removal/reset and cache cleanup without a spurious empty-zone error. Actual client layout, data coverage, cache cancellation/reuse and Lua/taint checks remain pending in [IN_GAME_TEST.md](docs/IN_GAME_TEST.md). The user explicitly authorized implementation, Git push and the subsequent release on 2026-10-13.
+
 ## 0.5.2 — 2026-10-13
 
 - Expanded name search from session-cached names to bounded runtime discovery of client map-hierarchy zone lines and verified accepted quest-log associations across zones. No fixed map, quest, achievement or story catalogue is added.

@@ -69,6 +69,7 @@ lua.execute((root / "tests" / "screen_warning_settings.lua").read_text(encoding=
 lua.execute((root / "tests" / "name_search.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "name_discovery.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "name_search_ui.lua").read_text(encoding="utf-8"))
+lua.execute((root / "tests" / "search_cache_zones.lua").read_text(encoding="utf-8"))
 assert lua.globals().Mock.mutationCount == 0, "A game mutation API was attempted during tests"
 assert lua.globals().Mock.invalidIDCalls == 0, "An invalid ID was passed to a game API"
 
@@ -110,8 +111,8 @@ assert(Mock.lineRequests[2248] == 1 and ns.result.total == 0 and not ns.result.d
 assert(QuestreihenTrackerDB.liveSelection.name == nil and QuestreihenTrackerDB.completed == nil)
 assert(QuestreihenTrackerDB.titles == nil and ns.result.completed == 0)
 assert(ns.db.chatWarnings == false, "Disabled chat warnings must survive startup migration")
-assert(ns.UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_OFF)
-assert(ns.db.screenWarnings == false and ns.UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_OFF)
+assert(ns.UI.settingsRows.chatWarnings.offButton.selected)
+assert(ns.db.screenWarnings == false and ns.UI.settingsRows.screenWarnings.offButton.selected)
 assert(ns.db.panelPositions.options == nil and ns.UI.Options == nil)
 assert(ns.UI.frame:GetWidth() == 820 and ns.UI.frame:GetHeight() == 930)
 local point, _, relativePoint, x, y = ns.UI.frame:GetPoint()
@@ -188,8 +189,8 @@ assert(ns.UI.frame:GetWidth() == 820 and ns.UI.frame:GetHeight() == 930)
 assert(ns.db.minimapAngle == 135 and ns.db.position.x == 42 and ns.db.position.y == -28)
 assert(ns.db.chatWarnings == false, "Disabled chat warnings must survive a fresh reload")
 assert(ns.db.screenWarnings == false, "Disabled screen warnings must survive a fresh reload")
-assert(ns.UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_OFF)
-assert(ns.UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_OFF)
+assert(ns.UI.settingsRows.screenWarnings.offButton.selected)
+assert(ns.UI.settingsRows.chatWarnings.offButton.selected)
 ns.eventFrame.scripts.OnEvent(ns.eventFrame, "PLAYER_LOGIN")
 ns.eventFrame.scripts.OnEvent(ns.eventFrame, "QUESTLINE_UPDATE", false)
 Mock.Flush()
@@ -245,6 +246,8 @@ for name in listed:
 window_namespace.eventFrame.scripts.OnEvent(window_namespace.eventFrame, "ADDON_LOADED", "QuestreihenTracker")
 window_lua.globals().TEST_NS = window_namespace
 window_lua.execute((root / "tests" / "window_persistence_scroll.lua").read_text(encoding="utf-8"))
+window_lua.execute((root / "tests" / "main_settings_redesign.lua").read_text(encoding="utf-8"))
+window_lua.execute((root / "tests" / "selector_redesign.lua").read_text(encoding="utf-8"))
 
 # Reboot with each saved visibility combination so restoration is tested at addon load.
 for keep_open, was_open in ((True, True), (True, False), (False, True), (False, False)):

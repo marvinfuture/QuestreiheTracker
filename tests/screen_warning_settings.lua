@@ -53,7 +53,8 @@ end
 
 -- Invoke the real screen-setting callback through its native button fixture.
 local function clickScreen()
-    local button = UI.screenWarningsButton
+    local row = UI.settingsRows.screenWarnings
+    local button = ns.db.screenWarnings and row.offButton or row.onButton
     button.scripts.OnClick(button, "LeftButton")
 end
 
@@ -118,26 +119,27 @@ local ok, message = pcall(function()
         assert(config.chatWarnings == false and config.screenWarnings == true)
     end)
 
-    test("button persists its choice independently and restores its label after reload", function()
+    test("choices persist independently and restore their selected state after reload", function()
         prepare(false, true)
-        assert(UI.screenWarningsButton.parent == UI.settings and UI.screenWarningsButton:IsEnabled())
-        assert(UI.screenWarningsButton:GetWidth() == 288)
+        assert(UI.screenWarningsButton.parent == UI.settings and UI.screenWarningsButton.onButton:IsEnabled())
+        assert(UI.screenWarningsButton:GetWidth() == 368)
         local point, _, _, x, y = UI.screenWarningsButton:GetPoint()
-        assert(point == "TOPLEFT" and x == 16 and y == -88)
-        assert(UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_ON)
+        assert(point == "TOPLEFT" and x == 16 and y == -92)
+        assert(UI.screenWarningsButton.label:GetText() == ns.L.SETTING_SCREEN)
+        assert(UI.screenWarningsButton.onButton.selected and not UI.screenWarningsButton.offButton.selected)
         clickScreen()
         assert(ns.db.screenWarnings == false and QuestreihenTrackerDB.screenWarnings == false)
-        assert(ns.db.chatWarnings == false and UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_OFF)
+        assert(ns.db.chatWarnings == false and UI.screenWarningsButton.offButton.selected)
         local reloaded = ns.ReadConfig(QuestreihenTrackerDB)
         assert(reloaded ~= ns.db and reloaded.schemaVersion == 9)
         assert(reloaded.chatWarnings == false and reloaded.screenWarnings == false)
         ns.db, QuestreihenTrackerDB = reloaded, reloaded
         UI.Restore()
-        assert(UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_OFF)
-        assert(UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_OFF)
+        assert(UI.screenWarningsButton.offButton.selected and not UI.screenWarningsButton.onButton.selected)
+        assert(UI.chatWarningsButton.offButton.selected and not UI.chatWarningsButton.onButton.selected)
         clickScreen()
         assert(ns.db.screenWarnings == true and ns.db.chatWarnings == false)
-        assert(UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_ON)
+        assert(UI.screenWarningsButton.onButton.selected and not UI.screenWarningsButton.offButton.selected)
     end)
 
     for _, flags in ipairs({ { false, false }, { false, true }, { true, false }, { true, true } }) do
@@ -230,8 +232,8 @@ local ok, message = pcall(function()
         ns.Slash("reset")
         assert(ns.db.schemaVersion == 9 and ns.db.chatWarnings == true and ns.db.screenWarnings == true)
         assert(QuestreihenTrackerDB.chatWarnings == true and QuestreihenTrackerDB.screenWarnings == true)
-        assert(UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_ON)
-        assert(UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_ON)
+        assert(UI.chatWarningsButton.onButton.selected and not UI.chatWarningsButton.offButton.selected)
+        assert(UI.screenWarningsButton.onButton.selected and not UI.screenWarningsButton.offButton.selected)
         assert(ns.chain.empty and not bannerShown() and UI.warningExpires == nil and #Mock.timers == 0)
     end)
 end)

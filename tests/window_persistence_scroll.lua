@@ -10,6 +10,11 @@ end
 local function click(button)
     button.scripts.OnClick(button, "LeftButton")
 end
+-- Click the inactive choice to change a setting through the actual native control.
+local function changeSetting(key)
+    local row = UI.settingsRows[key]
+    click(ns.db[key] and row.offButton or row.onButton)
+end
 local function specialCount()
     local count = 0
     for _, name in ipairs(UISpecialFrames) do
@@ -43,9 +48,9 @@ test("gear opens three independent controls and closing settings retains the mai
     assert(UI.chatWarningsButton.parent == UI.settings and UI.screenWarningsButton.parent == UI.settings)
     assert(UI.keepWindowOpenButton.parent == UI.settings)
     assert(UI.settingsButton.icon.atlasValue == "common-dropdown-a-button-settings-shadowless")
-    click(UI.chatWarningsButton)
+    changeSetting("chatWarnings")
     assert(not ns.db.chatWarnings and ns.db.screenWarnings and ns.db.keepWindowOpen)
-    click(UI.screenWarningsButton)
+    changeSetting("screenWarnings")
     assert(not ns.db.screenWarnings and not ns.db.chatWarnings and ns.db.keepWindowOpen)
     click(UI.settings.closeButton)
     assert(not UI.settings:IsShown() and UI.frame:IsShown() and ns.db.windowOpen)
@@ -97,22 +102,22 @@ test("saved open state restores only while enabled and reset restores default cl
     assert(not UI.frame:IsShown() and not ns.db.windowOpen)
     ns.Slash("reset")
     assert(ns.db.keepWindowOpen and not ns.db.windowOpen and not UI.frame:IsShown())
-    assert(specialCount() == 0 and UI.keepWindowOpenButton:GetText() == ns.L.KEEP_WINDOW_OPEN_ON)
+    assert(specialCount() == 0 and UI.keepWindowOpenButton.onButton.selected)
 end)
 
 test("turning persistence on follows the current window state and removes only its own special entries", function()
     configure({ keepWindowOpen = false })
     UISpecialFrames[#UISpecialFrames + 1] = "UnrelatedFixtureFrame"
     UISpecialFrames[#UISpecialFrames + 1] = "QuestreihenTrackerFrame"
-    click(UI.keepWindowOpenButton)
+    changeSetting("keepWindowOpen")
     assert(ns.db.keepWindowOpen and not ns.db.windowOpen and specialCount() == 0)
     assert(UISpecialFrames[1] == "UnrelatedFixtureFrame")
     UI.Open()
-    click(UI.keepWindowOpenButton)
+    changeSetting("keepWindowOpen")
     assert(not ns.db.keepWindowOpen and ns.db.windowOpen and specialCount() == 1)
     UI.UpdateWindowPersistence()
     assert(specialCount() == 1)
-    click(UI.keepWindowOpenButton)
+    changeSetting("keepWindowOpen")
     assert(ns.db.keepWindowOpen and ns.db.windowOpen and UI.frame:IsShown() and specialCount() == 0)
     UI.Close()
 end)
@@ -120,6 +125,7 @@ end)
 test("settings dialog position persists and invalid geometry is discarded", function()
     click(UI.settingsButton)
     UI.settings.scripts.OnDragStart(UI.settings)
+    UI.settings:ClearAllPoints()
     UI.settings:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 48, -92)
     UI.settings.scripts.OnDragStop(UI.settings)
     local config = ns.ReadConfig(QuestreihenTrackerDB)

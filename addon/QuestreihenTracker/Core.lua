@@ -1,6 +1,6 @@
 local addonName, ns = ...
 local L = ns.L
-ns.version = "0.5.2"
+ns.version = "0.6.0"
 
 -- Write localized addon feedback to the player's own chat frame.
 function ns.Print(message)
@@ -62,6 +62,7 @@ end
 -- Replace the displayed line and reset its ephemeral offers, warnings, and scroll position.
 local function applySelection(selected)
     ns.chain, ns.db.selectedChain = selected, selected.id
+    if selected.runtime then ns.WoW.RegisterQuestLine(selected) end
     ns.db.liveSelection = selected.runtime and { mapID = selected.mapID, questLineID = selected.questLineID } or nil
     ns.WoW.ClearOffers()
     ns.WoW.ResetWarnings()
@@ -76,15 +77,38 @@ function ns.CancelQuestLookup()
     ns.nameLookup = nil
     ns.WoW.ResetQuestLookup()
     ns.WoW.ResetNameDiscovery()
+    ns.WoW.PruneSearchCache()
+    if ns.UI.searchFeedback and not ns.UI.searchFeedback.opened then ns.UI.searchFeedback = nil end
+end
+
+-- Clear only addon search data, retaining the displayed line and saved preferences.
+function ns.ClearSearchCache()
+    if not ns.initialized then return end
+    ns.CancelQuestLookup()
+    ns.WoW.ClearSearchCache()
+    ns.UI.searchFeedback = { kind = "CACHE", status = "READY", text = L.CACHE_CLEARED }
+    ns.Refresh()
+end
+
+-- Browse the chosen zone and retire searches that belong to the previous view.
+function ns.BrowseZone(mapID)
+    ns.CancelQuestLookup()
+    ns.UI.searchFeedback = nil
+    ns.WoW.SetBrowseZone(mapID)
+    ns.Refresh()
+    ns.WoW.PruneSearchCache()
+    ns.ScheduleRefresh()
 end
 
 -- Clear the addon selection while retaining preferences and Blizzard quest state.
 function ns.ClearSelection()
     if not ns.initialized then return end
     ns.CancelQuestLookup()
+    ns.UI.searchFeedback = nil
     if ns.UI.selector then ns.UI.selector:Hide() end
     if ns.UI.link then ns.UI.link:Hide() end
     applySelection(ns.LiveData.Empty())
+    ns.WoW.PruneSearchCache()
     ns.Refresh()
 end
 
@@ -95,8 +119,11 @@ local function resolveQuestLookup()
     local chain, status = ns.WoW.FindQuestLine(lookup.questID)
     -- Unlabelled map events can arrive before the current request's association.
     lookup.status, lookup.pending = status, status == "LOADING" or status == "NOT_FOUND"
+    ns.UI.searchFeedback = { kind = "QUEST", status = status, opened = status == "READY" }
     if chain and status == "READY" then
         applySelection(chain)
+        ns.WoW.ResetQuestLookup()
+        ns.WoW.PruneSearchCache()
         ns.UI.Open()
         if ns.UI.selector then ns.UI.selector:Hide() end
     end
@@ -105,6 +132,7 @@ end
 -- Start a guarded quest-ID lookup without hiding the existing view while data loads.
 function ns.LookupQuest(questID)
     ns.CancelQuestLookup()
+    ns.UI.searchFeedback = { kind = "QUEST", status = "INVALID_ID" }
     ns.questLookup = { questID = questID, status = "INVALID_ID", pending = false }
     if ns.LiveData.IsID(questID) then
         ns.questLookup.pending = true
@@ -120,6 +148,7 @@ function ns.UseTrackedQuest()
     if questID then ns.LookupQuest(questID)
     else
         ns.questLookup = { status = status, pending = false }
+        ns.UI.searchFeedback = { kind = "QUEST", status = status }
         ns.UI.RenderQuestLookup()
     end
 end
@@ -154,7 +183,8 @@ end
 -- Submit an explicit name query without replacing the currently displayed quest list.
 function ns.LookupName(text)
     ns.CancelQuestLookup()
-    ns.nameLookup = { text = text or "", results = {}, status = "INVALID" }
+    ns.nameLookup = { text = text or "", results = {}, status = "INVALID", pending = true }
+    ns.UI.searchFeedback = { kind = "NAME", status = "INVALID" }
     ns.Refresh()
 end
 
@@ -163,14 +193,22 @@ local function resolveNameLookup()
     local lookup = ns.nameLookup
     if not lookup then return end
     local exactChain
-    lookup.results, lookup.status, exactChain = ns.WoW.SearchQuestLinesByName(lookup.text)
-    if lookup.status == "LOADING" then ns.ScheduleRefresh()
+    if lookup.pending == false then
+        exactChain = ns.WoW.RefreshNameSearchResults(lookup.results)
+    else
+        lookup.results, lookup.status, exactChain = ns.WoW.SearchQuestLinesByName(lookup.text)
+        lookup.pending = lookup.status == "LOADING"
+    end
+    ns.UI.searchFeedback = { kind = "NAME", status = lookup.status, results = lookup.results }
+    if lookup.pending then ns.ScheduleRefresh()
     elseif exactChain and not exactChain.loading and not exactChain.empty then
+        ns.UI.searchFeedback = { kind = "NAME", status = "READY", opened = true }
         ns.CancelQuestLookup()
         applySelection(exactChain)
+        ns.WoW.PruneSearchCache()
         ns.UI.Open()
         if ns.UI.selector then ns.UI.selector:Hide() end
-    end
+    else ns.WoW.PruneSearchCache() end
 end
 
 -- The only gameplay action: explicitly observing and navigating to a clicked member quest.
@@ -250,6 +288,7 @@ function ns.Select(id)
     if not selected then return end
     ns.CancelQuestLookup()
     applySelection(selected)
+    ns.WoW.PruneSearchCache()
     ns.Refresh()
     ns.ScheduleRefresh()
 end

@@ -55,7 +55,8 @@ test("a submitted finite search shares the timer and stops when complete", funct
     end
     click(panel.nameSearchButton)
     assert(ns.nameLookup.status == "LOADING" and ns.chain.empty and #Mock.timers == 1)
-    assert(visibleButtons() == 1 and panel.lookupStatus:GetText():find("Trauerhöhe", 1, true))
+    assert(visibleButtons() == 1 and panel.nameSearchButton.spinner:IsShown())
+    assert(panel.lookupStatus:GetText() == ns.L.SEARCH_LOADING)
     Mock.Flush()
     assert(calls == 2 and ns.nameLookup.status == "PARTIAL" and #Mock.timers == 0)
     assert(ns.chain.empty and panel.refresh:GetText() == ns.L.NAME_BACK_ZONE)
@@ -99,7 +100,7 @@ test("editing cancels continuation before the next shared timer fires", function
     panel.nameInput.scripts.OnTextChanged(panel.nameInput)
     Mock.Flush()
     assert(calls == 1 and ns.nameLookup == nil and #Mock.timers == 0)
-    assert(panel.refresh:GetText() == ns.L.REFRESH_ZONE)
+    assert(not panel.backButton:IsShown())
 end)
 
 test("editing a quest ID restores the zone view after completed name results", function()
@@ -108,8 +109,8 @@ test("editing a quest ID restores the zone view after completed name results", f
     assert(ns.nameLookup and visibleButtons() == 1 and panel.refresh:GetText() == ns.L.NAME_BACK_ZONE)
     panel.questIDInput:SetText("78743")
     panel.questIDInput.scripts.OnTextChanged(panel.questIDInput)
-    assert(ns.nameLookup == nil and panel.refresh:GetText() == ns.L.REFRESH_ZONE)
-    local choices = ns.WoW.ZoneQuestLines()
+    assert(ns.nameLookup == nil and not panel.backButton:IsShown())
+    local choices = ns.WoW.BrowseQuestLines()
     assert(visibleButtons() == #choices and UI.notice:GetText() == ns.L.BLIZZARD_NOTICE)
     for _, label in ipairs(panel.labels) do
         assert(not label:IsShown() or not label:GetText():find(criterion.name, 1, true))
@@ -133,7 +134,7 @@ test("returning to zone choices clears the submitted name query", function()
     assert(ns.nameLookup and panel.refresh:GetText() == ns.L.NAME_BACK_ZONE)
     click(panel.refresh)
     Mock.Flush()
-    assert(ns.nameLookup == nil and panel.refresh:GetText() == ns.L.REFRESH_ZONE)
+    assert(ns.nameLookup == nil and not panel.backButton:IsShown())
 end)
 
 test("achievement list events invalidate discovery without selecting or mutating quests", function()

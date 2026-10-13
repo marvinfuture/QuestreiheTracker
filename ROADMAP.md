@@ -1,6 +1,23 @@
 # Roadmap
 
-## Current: 0.5.2 — Questreihen per Name und Quest-ID aufrufen
+## Current: 0.6.0 — Cache, Fensteroptik und Suchbedienung
+
+Am 13. Oktober 2026 hat der Nutzer die gesammelten Vorschläge und Bezeichnungen bestätigt und anschließend mit **„go mit anschließend release auf git“** die Umsetzung, Git-Push und ein neues Release freigegeben. Die folgenden Änderungen sind für 0.6.0 umgesetzt. Die integrierte Offlineprüfung besteht 223 gezählte Verhaltensfälle, vier zusätzliche Startkombinationen, die separaten Banner-/Start-/Reload-/fehlende-API-Prüfungen und 54 statische Selbsttests. Alle 15 Addon-Lua-Dateien laden unter Lua 5.1; 28 C-API-Mitglieder sind geprüft, ohne verbotene Spieländerung oder ungültige ID. Das Paket mit 18 Dateien und 83.306 Bytes ist gebaut. Die tatsächliche Clientprüfung bleibt separat offen.
+
+1. **Nicht mehr benötigte Laufzeitdaten aufräumen:** **Suchcache leeren** beendet überholte Sucharbeit und gibt unbenutzte Suchdaten des Addons frei. Automatische Bereinigung nach Abbruch oder abgeschlossener Suche hält nur benötigte Anfrage-/Ergebnisdaten sowie die angezeigte Reihe und aktuelle beziehungsweise im Dropdown gewählte Zone vor. **Entfernen** behält seine bisherige Funktion; Cachebereinigung bewahrt die angezeigte Reihe und Einstellungen. Spätere Antworten dürfen abgebrochene Suchen nicht wiederherstellen. Das Addon verwaltet ausschließlich eigene Sitzungscaches, nicht Blizzards Clientcache.
+2. **Hauptfenster an Blizzards Oberfläche anpassen:** Zahnrad/Einstellungen verwendet Blizzards `SquareIconButtonTemplate` mit dem Zahnradatlas, X den nativen `UIPanelCloseButton`. Der erste Button heißt fest **Suche** und öffnet das Such-/Auswahlfenster. **Entfernen** behält seine Bezeichnung und bestehende Funktion.
+3. **Questreihennamen als Überschrift anzeigen:** Der ausgewählte Name steht als passende Überschrift vor den Quests. Reihenfolge: **Prozentbalken → Questreihenname → „0/3 Quests abgeschlossen“ → Questliste**. Lange Namen, keine Auswahl und noch ladende Daten werden bei der Anordnung berücksichtigt.
+4. **Questbutton in beiden Fenstern gleich benennen:** Die bestätigte Beschriftung lautet **Questreihe zur verfolgten Quest**, sowohl im Hauptfenster als auch im Suchfenster. Er öffnet weiterhin die ganze bestätigte Reihe zur Quest mit Blizzards Navigationspfeil. Die Bedeutungsfrage ist damit geklärt.
+5. **Einstellungen übersichtlicher gestalten:** Links den Einstellungsnamen anzeigen, rechts klar abgegrenzte, gegenseitig ausschließende **An | Aus**-Bedienelemente, passend zur Blizzard-Optik. Die aktive Wahl ist eindeutig erkennbar. Die drei unabhängigen gespeicherten Einstellungen bleiben inhaltlich erhalten.
+6. **Suchfelder und Aktionen strukturieren:** Quest-ID und Namenssuche untereinander mit eindeutig zugehörigen Beschriftungen, Eingaben und Suchbuttons anordnen. Die bestätigte kurze Feldbeschriftung lautet **Questreihe**, mit **Handlungs- oder Geschichtsstrang** als zusätzlichem Hinweis.
+7. **Suchzustand sichtbar machen:** Nach **Suchen** zeigt ein nativer `SpinnerTemplate` neben der Aktion laufende Arbeit. Bestätigte auswählbare Reihentreffer erhalten einen Haken. Für fehlende Zuordnung oder ungültige Eingabe erscheint direkt im Fenster **„Keine passende Questreihe gefunden. Bitte prüfe deine Eingabe.“** Auf Nutzerwunsch gibt es keine unterschiedliche Tippfehler-/Datenfehlermeldung. Mehrere Treffer bleiben auswählbar. Erfolgs-/Kriterienhinweise allein erhalten keinen Erfolgshaken. Die automatische Auswahl eindeutiger exakter Namen öffnet die vollständige Reihe im Hauptfenster und bestätigt den Erfolg dort.
+8. **Zone per Dropdown auswählen:** Statt der bisherigen Zeile **Aktuelle Zone** und der danebenstehenden Aktion **Aktualisieren** die Beschriftung **Zone:** mit einem Dropdown einführen. Die bestätigte Voreinstellung heißt **Aktuelle Zone**. Bei Auswahlwechsel wird die betreffende Zonenliste automatisch angefordert/aktualisiert; bei aktiver Option **Aktuelle Zone** folgt sie auch dem Zonenwechsel des Spielers. Eine ausdrücklich gewählte andere Zone bleibt ausgewählt. Der Zonenwechsel im Dropdown beendet eine überholte Namenssuche, damit deren spätere Antworten die gewählte Zonenansicht nicht überschreiben.
+9. **Clientzonen gruppiert anbieten:** **Aktuelle Zone** oben anzeigen, weitere vom Client gelieferte Zonen nach Kontinent gruppieren und einen Suchfilter anbieten. Die Kartenhierarchie liefert die auswählbaren Zonen; Questlisten werden erst bei Bedarf angefordert. Das bestätigt keine vollständige Quest-/Questreihenabdeckung jeder Zone. Stadt-, Unter- und Instanzkarten nach dem passenden Client-Kartentyp behandeln, statt sie ungeprüft als weitere Zonen einzutragen. Grundlage: [Blizzards Karten-API](https://github.com/Gethe/wow-ui-source/blob/09b9db7948abc9b9648dedaab51eb0cf3ee67b31/Interface/AddOns/Blizzard_APIDocumentationGenerated/MapDocumentation.lua).
+10. **Jedes Fenster schließbar machen:** Alle eigenständigen Addonfenster bekommen oben rechts ein X im passenden Blizzard-Stil, ausdrücklich Haupt-, Einstellungs-, Such- und Linkfenster. Eine eventuell als eigenes Fenster geführte Warnanzeige ebenfalls berücksichtigen. Schließen der Suche muss laufende Arbeit abbrechen; das X des Hauptfensters muss weiterhin die bewusste Schließentscheidung speichern.
+
+Festgelegte Bezeichnungen: **Hauptfenster**, **Suche**, **Suchen**, **Entfernen**, **Suchcache leeren**, **Questreihe zur verfolgten Quest**, **Questreihe** mit dem Hinweis **Handlungs- oder Geschichtsstrang** sowie **Zone: Aktuelle Zone**. Der Auftrag umfasst die anschließende Veröffentlichung als v0.6.0.
+
+## Previous: 0.5.2 — Questreihen per Name und Quest-ID aufrufen
 
 Am 13. Oktober 2026 hat der Nutzer die Namenssuche mit „Go“ freigegeben und ein aktuelles GitHub-Release beauftragt. Gemeint ist die gesamte vom Client bestätigte Questreihe: Eine Quest-ID ihrer ersten oder einer anderen Quest ruft die ganze gelieferte Liste auf; der volle Questreihenname soll dieselbe Liste öffnen. Das Nutzerbeispiel ist **Trauerhöhe**, dessen erste Quest nach seiner Angabe **Zur Trauerhöhe** heißt. Der einzelne Questtitel wird nicht als Namensalias fest eingebaut.
 
@@ -51,7 +68,7 @@ Am 11. Oktober 2026 hat der Nutzer mit „Go“ alle sechs zuletzt gesammelten V
 
 Run [IN_GAME_TEST.md](docs/IN_GAME_TEST.md), especially identical full membership via first/other quest ID and exact line name, Trauerhöhe discovery from another zone, ambiguous/partial names and cancellation during delayed discovery. Also check the gear settings, persistent manual window choice during teleport/reload/talents, intentional closing, automatic scrolling, warning outputs, row-click navigation, removal/reload and delayed names. Record actual client build, results and Lua/taint issues separately from offline tests.
 
-Collect any remaining client fixes. The current authorization covers Git push and the v0.5.2 release, including the local 0.5.1 changes.
+Also run the new 0.6.0 cache, native controls, search feedback and grouped zone-dropdown checks. Collect any remaining client fixes. The current authorization covers Git push and the v0.6.0 release.
 
 ## Umgesetzte Änderungsvorschläge
 
@@ -88,7 +105,7 @@ Im WoW-Client noch prüfen: Ausrichtung und Lesbarkeit bei langen Titeln, Mindes
 
 ## Later, only if requested
 
-Consider additional runtime zone selection or improved coverage of client-supplied lists. Avoid recreating a bundled quest database or extra list modes. The settings panel is included in 0.5.1 above.
+Consider improved coverage of client-supplied lists only when requested. Avoid recreating a bundled quest database or extra list modes. Grouped runtime zone selection is included in 0.6.0 above.
 
 ## Umgesetzte neue Vorschläge — 0.5.0
 

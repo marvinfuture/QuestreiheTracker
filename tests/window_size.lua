@@ -67,6 +67,7 @@ test("resizing updates rows and persists dimensions and anchor only on release",
     assert(not ns.UI.resizing and not rawget(frame, "sizing"))
     handle.scripts.OnMouseDown(handle, "LeftButton")
     assert(ns.UI.resizing and frame.sizing and frame.sizingPoint == "BOTTOMRIGHT")
+    frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 125, -90)
     frame:SetSize(820, 910)
     assert(ns.db.size == nil and ns.db.position == nil)
@@ -90,6 +91,7 @@ test("dragging records the anchor and reopening restores the chosen geometry", f
     local frame = ns.UI.frame
     frame.scripts.OnDragStart(frame)
     assert(ns.UI.moving and frame.moving)
+    frame:ClearAllPoints()
     frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -160, 110)
     frame.scripts.OnDragStop(frame)
     assert(not ns.UI.moving and not frame.moving)
@@ -99,6 +101,7 @@ test("dragging records the anchor and reopening restores the chosen geometry", f
     ns.UI.Toggle(); assert(frame:IsShown())
     assertGeometry(820, 910, "BOTTOMRIGHT", "BOTTOMRIGHT", -160, 110)
     local saved = ns.ReadConfig(ns.db)
+    frame:ClearAllPoints()
     frame:SetPoint("CENTER")
     frame:SetSize(440, 500)
     ns.db, QuestreihenTrackerDB = saved, saved
@@ -111,6 +114,7 @@ test("hiding an active resize or drag stops it and saves the final layout", func
     frame:Show()
     handle.scripts.OnMouseDown(handle, "LeftButton")
     frame:SetSize(700, 800)
+    frame:ClearAllPoints()
     frame:SetPoint("LEFT", UIParent, "LEFT", 60, 35)
     local stops = frame.stopCount
     frame:Hide()
@@ -119,6 +123,7 @@ test("hiding an active resize or drag stops it and saves the final layout", func
     assert(ns.db.position.point == "LEFT" and ns.db.position.x == 60)
     frame:Show()
     frame.scripts.OnDragStart(frame)
+    frame:ClearAllPoints()
     frame:SetPoint("RIGHT", UIParent, "RIGHT", -60, -35)
     stops = frame.stopCount
     frame:Hide()

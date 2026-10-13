@@ -13,7 +13,8 @@ local function test(name, fn)
     passed = passed + 1
 end
 local function click()
-    local button = UI.chatWarningsButton
+    local row = UI.settingsRows.chatWarnings
+    local button = ns.db.chatWarnings and row.offButton or row.onButton
     button.scripts.OnClick(button, "LeftButton")
 end
 local function config(value)
@@ -32,24 +33,25 @@ test("new and legacy configurations default to chat on; only booleans are retain
     assert(ns.ReadConfig({ chatWarnings = true }).chatWarnings == true)
 end)
 
-test("settings callback changes the saved preference and its visible label", function()
+test("settings choice changes the saved preference and its visible selected state", function()
     config(nil)
-    assert(UI.chatWarningsButton.parent == UI.settings and UI.chatWarningsButton:IsEnabled())
-    assert(UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_ON)
+    assert(UI.chatWarningsButton.parent == UI.settings and UI.chatWarningsButton.onButton:IsEnabled())
+    assert(UI.chatWarningsButton.label:GetText() == ns.L.SETTING_CHAT)
+    assert(UI.chatWarningsButton.onButton.selected and not UI.chatWarningsButton.offButton.selected)
     click()
     assert(ns.db.chatWarnings == false and QuestreihenTrackerDB.chatWarnings == false)
-    assert(UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_OFF)
+    assert(UI.chatWarningsButton.offButton.selected and not UI.chatWarningsButton.onButton.selected)
     local persisted = ns.ReadConfig(QuestreihenTrackerDB)
     assert(persisted ~= ns.db and persisted.chatWarnings == false)
     config(persisted)
-    assert(UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_OFF)
+    assert(UI.chatWarningsButton.offButton.selected and not UI.chatWarningsButton.onButton.selected)
     click()
-    assert(ns.db.chatWarnings == true and UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_ON)
+    assert(ns.db.chatWarnings == true and UI.chatWarningsButton.onButton.selected)
 end)
 
 test("settings keep chat controls separate from the full-width tracked action", function()
     config({ chatWarnings = false, size = { width = 320, height = 300 } })
-    assert(UI.trackedButton:GetWidth() == 288 and UI.chatWarningsButton:GetWidth() == 288)
+    assert(UI.trackedButton:GetWidth() == 288 and UI.chatWarningsButton:GetWidth() == 368)
     local trackedPoint, _, _, trackedX, trackedY = UI.trackedButton:GetPoint()
     local chatPoint, _, _, chatX, chatY = UI.chatWarningsButton:GetPoint()
     assert(trackedPoint == "TOPLEFT" and trackedX == 16 and trackedY == -76)
@@ -102,7 +104,7 @@ test("reset restores the default and refreshes the button", function()
     assert(ns.db.chatWarnings == false)
     ns.Slash("reset")
     assert(ns.db.chatWarnings == true and QuestreihenTrackerDB.chatWarnings == true)
-    assert(UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_ON)
+    assert(UI.chatWarningsButton.onButton.selected and not UI.chatWarningsButton.offButton.selected)
     Mock.Flush()
 end)
 

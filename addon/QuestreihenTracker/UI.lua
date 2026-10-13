@@ -51,6 +51,7 @@ function UI.Layout(width)
     UI.select:SetWidth(textWidth - 92)
     UI.trackedButton:SetWidth(textWidth)
     UI.bar:SetWidth(textWidth)
+    UI.chainTitle:SetWidth(textWidth)
     UI.count:SetWidth(textWidth)
     UI.notice:SetWidth(textWidth)
     UI.content:SetWidth(contentWidth)
@@ -60,7 +61,35 @@ function UI.Layout(width)
         row.subtext:SetWidth(contentWidth - 40)
         row.separator:SetWidth(contentWidth - 5)
     end
+    UI.LayoutProgress()
     UI.LayoutRows()
+end
+
+-- Place the wrapped line heading between progress and count while retaining a usable list.
+function UI.LayoutProgress()
+    if not UI.chainTitle or not UI.scroll then return end
+    UI.chainTitle:SetHeight(0)
+    local measured = UI.chainTitle:GetStringHeight()
+    local height = type(measured) == "number" and measured > 0 and measured < 10000
+        and math.ceil(measured) or 0
+    if height > 0 then
+        -- Long client titles wrap, with the native tooltip retaining the full title at tiny sizes.
+        height = math.max(18, math.min(height, math.max(18, UI.frame:GetHeight() - 262)))
+    end
+    UI.chainTitle:SetHeight(height)
+    UI.chainTitle:SetShown(height > 0)
+    UI.chainTitleHost:SetSize(UI.chainTitle:GetWidth(), height)
+    UI.chainTitleHost:SetShown(height > 0)
+    local countTop = 136 + (height > 0 and height + 2 or 0)
+    UI.count:ClearAllPoints()
+    UI.count:SetPoint("TOPLEFT", UI.frame, "TOPLEFT", 16, -countTop)
+    UI.notice:ClearAllPoints()
+    UI.notice:SetPoint("TOPLEFT", UI.frame, "TOPLEFT", 16, -(countTop + 19))
+    UI.questDivider:ClearAllPoints()
+    UI.questDivider:SetPoint("TOPLEFT", UI.frame, "TOPLEFT", 16, -(countTop + 54))
+    UI.scroll:ClearAllPoints()
+    UI.scroll:SetPoint("TOPLEFT", UI.frame, "TOPLEFT", 16, -(countTop + 60))
+    UI.scroll:SetPoint("BOTTOMRIGHT", UI.frame, "BOTTOMRIGHT", -36, 24)
 end
 
 -- Measure wrapped quest titles and position each status and divider without overlap.
@@ -152,18 +181,14 @@ function UI.Toggle()
     if UI.frame:IsShown() then UI.Close() else UI.Open() end
 end
 
--- Reflect the independently saved chat warning preference in its button label.
+-- Reflect the independently saved chat warning preference in its An/Aus choices.
 function UI.RenderChatWarningSetting()
-    if UI.chatWarningsButton then
-        UI.chatWarningsButton:SetText(ns.db.chatWarnings and L.CHAT_WARNINGS_ON or L.CHAT_WARNINGS_OFF)
-    end
+    UI.RenderSetting("chatWarnings", ns.db.chatWarnings)
 end
 
 -- Reflect the independent saved banner choice without changing activity tracking.
 function UI.RenderScreenWarningSetting()
-    if UI.screenWarningsButton then
-        UI.screenWarningsButton:SetText(ns.db.screenWarnings and L.SCREEN_WARNINGS_ON or L.SCREEN_WARNINGS_OFF)
-    end
+    UI.RenderSetting("screenWarnings", ns.db.screenWarnings)
 end
 
 -- Create the native tracker controls once and connect explicit user actions.
@@ -207,16 +232,14 @@ function UI.Create()
     UI.title:SetText(L.TITLE)
     UI.titleUnderline = UI.Rule(frame, 294, 16, -38, { 0.85, 0.69, 0.38, 0.7 })
     -- Close the main window through its title-bar button.
-    local close = UI.Button(frame, "X", 25, 400, -10, UI.Close)
+    local close = UI.CloseButton(frame, UI.Close)
     UI.closeButton = close
-    close:ClearAllPoints()
-    close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -15, -10)
     UI.CreateSettings()
-    UI.select = UI.Button(frame, "", 316, 16, -46, UI.ChooseChain)
-    -- Show the full selected line name when the button label is clipped.
+    UI.select = UI.Button(frame, L.SEARCH, 316, 16, -46, UI.ChooseChain)
+    -- Explain the search action without replacing it with the selected line's name.
     UI.select:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
-        GameTooltip:SetText(self.tooltip or L.CHOOSE_CHAIN)
+        GameTooltip:SetText(L.SEARCH)
         GameTooltip:Show()
     end)
     -- Dismiss the selection tooltip when the pointer leaves its button.
@@ -258,10 +281,26 @@ function UI.Create()
     UI.percent:ClearAllPoints()
     UI.percent:SetPoint("CENTER", bar, "CENTER", 0, 0)
     UI.percent:SetJustifyH("CENTER")
-    UI.count = UI.Text(frame, nil, 16, -136, 328)
+    local heading = CreateFrame("Frame", nil, frame)
+    UI.chainTitleHost = heading
+    heading:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -136)
+    heading:EnableMouse(true)
+    UI.chainTitle = UI.Text(frame, "large", 16, -136, 328)
+    UI.chainTitle:SetTextColor(1, 0.86, 0.55)
+    UI.chainTitle:SetJustifyV("TOP")
+    -- Reveal the complete line title when a compact window cannot show every wrapped line.
+    heading:SetScript("OnEnter", function(self)
+        if not ns.chain or ns.chain.empty then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
+        GameTooltip:SetText(ns.chain.name)
+        GameTooltip:Show()
+    end)
+    -- Dismiss the line heading tooltip after leaving its region.
+    heading:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    UI.count = UI.Text(frame, nil, 16, -160, 328)
     UI.count:SetHeight(18)
     UI.notice = UI.Text(frame, nil, 16, -157, 328)
-    UI.notice:SetHeight(32)
+    UI.notice:SetHeight(28)
     UI.notice:SetTextColor(0.7, 0.7, 0.7)
     UI.questDivider = UI.Rule(frame, 328, 16, -195)
     UI.scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
@@ -296,7 +335,7 @@ function UI.Create()
     end)
     -- Dismiss the resize tooltip after leaving the handle.
     resize:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    -- Reflow controls and quest rows whenever the main window width changes.
+    -- Reflow wrapped headings and quest rows whenever the main window geometry changes.
     frame:SetScript("OnSizeChanged", function(_, width) UI.Layout(width) end)
     UI.Restore()
 end
@@ -351,12 +390,17 @@ function UI.ShowWarning(message)
             edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2 })
         warning:SetBackdropColor(0.12, 0.035, 0.025, 0.94)
         warning:SetBackdropBorderColor(1, 0.55, 0.15, 1)
-        local title = UI.Text(warning, "large", 16, -12, 468)
+        local title = UI.Text(warning, "large", 16, -12, 430)
         title:SetText(L.UNRELATED_WARNING_TITLE)
         title:SetTextColor(1, 0.65, 0.2)
         warning.message = UI.Text(warning, nil, 16, -38, 468)
         warning.message:SetHeight(58)
         warning.message:SetTextColor(1, 0.9, 0.75)
+        -- Dismiss this banner and cancel only its deadline through the shared timer.
+        warning.closeButton = UI.CloseButton(warning, function()
+            UI.ClearWarning()
+            ns.ScheduleWarningExpiry()
+        end)
         UI.warning = warning
     end
     UI.warning.message:SetText(message)
@@ -371,8 +415,8 @@ function UI.Render(result)
     if not UI.frame then return end
     local chain = ns.chain
     local loading, empty = chain.loading, chain.empty
-    UI.select:SetText((empty and L.CHOOSE_CHAIN or chain.name) .. "  >")
-    UI.select.tooltip = empty and L.CHOOSE_CHAIN or chain.name
+    UI.select:SetText(L.SEARCH)
+    UI.chainTitle:SetText(empty and "" or chain.name)
     UI.clearButton:SetEnabled(not empty)
     UI.bar:SetValue(loading and 0 or result.percent)
     UI.percent:SetText(loading and L.LOADING_SHORT or string.format("%.0f %%", result.percent))
@@ -421,5 +465,6 @@ function UI.Render(result)
             end
         end
     end
+    UI.LayoutProgress()
     UI.LayoutRows()
 end

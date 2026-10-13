@@ -183,7 +183,7 @@ local function addQuestLines(results, query)
                 local quests = ns.Model.Flatten(chain)
                 results[#results + 1] = { kind = "QUEST_LINE", name = chain.name, foldedName = name,
                     chain = chain, selectable = not chain.loading and not chain.empty and #quests > 0,
-                    loading = chain.loading == true, exact = name == query,
+                    loading = chain.loading == true, exact = name == query, query = query,
                     source = chain.source, sourceAPI = chain.nameSourceAPI or chain.sourceAPI }
             end
         end
@@ -239,6 +239,33 @@ end
 -- Rebuild discovery for a new client achievement list; progress events use live reads of matching hits.
 function WoW.OnNameSearchAchievementUpdate(reset)
     if reset == true or (index and index.unavailable) then index = nil end
+end
+
+-- Refresh only existing result contexts after terminal discovery; never restart the world scan.
+function WoW.RefreshNameSearchResults(results)
+    if type(results) ~= "table" then return nil end
+    for entry, result in ipairs(results) do
+        if entry > maximumResults then break end
+        if result.kind == "QUEST_LINE" and type(result.chain) == "table" then
+            local previous = result.chain
+            local exactQuery = result.query or (result.exact and result.foldedName or nil)
+            local info = { questLineID = previous.questLineID,
+                questLineName = previous.nameKnown and previous.name or nil }
+            local questIDs = WoW.Call(C_QuestLine and C_QuestLine.GetQuestLineQuests, previous.questLineID)
+            local chain = LiveData.Build(previous.mapID, info, questIDs)
+                or WoW.GetQuestLine(previous.id) or previous
+            chain.sourceAPI, chain.nameSourceAPI = previous.sourceAPI, previous.nameSourceAPI
+            WoW.ResolveQuestLineName(chain)
+            chain = WoW.RegisterQuestLine(chain) or previous
+            result.chain, result.name, result.foldedName = chain, chain.name, folded(chain.name)
+            result.loading = chain.loading == true
+            result.selectable = not chain.loading and not chain.empty and #ns.Model.Flatten(chain) > 0
+            -- Exactness refers to the submitted name; a later authoritative name
+            -- change can remove an old exact match, but cannot invent a new query.
+            result.exact = exactQuery ~= nil and result.foldedName == exactQuery
+        else refreshProgress(result) end
+    end
+    return uniqueExactLine(results)
 end
 
 -- Search client-supplied line and achievement names without inventing quest membership from text or assets.
