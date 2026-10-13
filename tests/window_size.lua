@@ -17,7 +17,7 @@ local function storedSize(width, height)
 end
 
 test("window preference validation keeps only finite supported dimensions", function()
-    assert(ns.ReadConfig(nil).schemaVersion == 8)
+    assert(ns.ReadConfig(nil).schemaVersion == 9)
     for _, size in ipairs({ { width = 320, height = 300 }, { width = 1400, height = 1200 },
         { width = 830.5, height = 875.25, foreign = true } }) do
         local config = ns.ReadConfig({ size = size })
@@ -124,7 +124,8 @@ test("hiding an active resize or drag stops it and saves the final layout", func
     frame:Hide()
     assert(frame.stopCount == stops + 1 and not frame.moving and not ns.UI.moving)
     assert(ns.db.position.point == "RIGHT" and ns.db.position.y == -35)
-    frame:Show()
+    Mock.Flush()
+    assert(frame:IsShown(), "An unexpected hide must preserve the requested open state")
     assertGeometry(700, 800, "RIGHT", "RIGHT", -60, -35)
 end)
 
@@ -141,7 +142,7 @@ test("restoration handles bounds and keeps scale separate from window size", fun
     ns.Slash("reset")
     assert(ns.db.size == nil and ns.db.position == nil and ns.db.scale == 1)
     assertGeometry(360, 500, "CENTER", "CENTER", 0, 0)
-    frame:Hide()
+    ns.UI.Close()
     assert(Mock.mutationCount == 0, table.concat(Mock.mutations, ", "))
 end)
 

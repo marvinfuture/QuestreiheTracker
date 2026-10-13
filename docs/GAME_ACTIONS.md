@@ -1,6 +1,6 @@
 # Gameplay action boundary
 
-Version 0.5.0 displays one runtime quest list, character progress and independently configurable local warnings. Quest-ID/name lookup chooses a displayed line. An explicit left-click on an accepted regular member quest can add its Blizzard quest watch and select it as the active quest navigation target. This user click is the sole gameplay-action entry point.
+Version 0.5.1 displays one runtime quest list, character progress, independent local-warning settings, a persistent main-window preference and active-quest scrolling. Quest-ID/name lookup chooses a displayed line; the existing name-search implementation is unchanged in this build. An explicit left-click on an accepted regular member quest can add its Blizzard quest watch and select it as the active quest navigation target. This user click is the sole gameplay-action entry point.
 
 ## Read-only API boundary
 
@@ -40,10 +40,14 @@ Lookup chooses only the addon's displayed list. Name search offers a runtime lin
 
 **Entfernen** clears addon selection and pending lookup, including the saved selection. It neither abandons quests nor changes quest watches, selected quests, navigation or waypoints. Runtime name recovery only reads matching client metadata.
 
-Settings and other-quests views have no frames, controls or implementation. Removed legacy flags are discarded. SavedVariables holds only selection IDs, geometry/launcher preferences and the default-on `chatWarnings` / `screenWarnings` booleans; no quest/title/achievement/progress data is stored. **Entfernen** preserves both warning choices. Reset affects only addon state and restores both warning outputs to **An**.
+The settings gear opens an addon-owned draggable panel with independent **Chatwarnung**, **Bildschirmwarnung** and **Fenster geöffnet lassen** switches. The removed other-quests view stays absent. SavedVariables holds only selection IDs, geometry/launcher preferences, the three default-on boolean settings and the initially-false manual `windowOpen` choice; no quest/title/achievement/progress data is stored. **Entfernen** preserves the settings and opening choice. Reset affects only addon state, restores default settings and closes the main window.
+
+Persistent opening restores only the addon's main window according to explicit user intent. Incidental hides and reload may restore an explicitly opened tracker while keep-open is enabled. X, slash-toggle and minimap-toggle remain deliberate closes and stay closed; a fresh installation starts closed. This changes no Blizzard talent panel, quest data or gameplay state. Settings and auxiliary dialogs remain ordinarily dismissible.
+
+Automatic active-quest scrolling changes only the addon's scroll offset. Acceptance events and displayed quest-state changes may choose a visible target, but never create a watch or change Blizzard navigation. Targets are restricted to active members of the displayed client-supplied line; there is no invented quest, prerequisite or default target when no member is active.
 
 ## Verification limits
 
 `python scripts/test.py` combines a static API allowlist with executed Lua 5.1 tests. The watch and quest-navigation mutations are permitted only as direct calls inside the reviewed adapter. Forbidden-action traps record attempted game changes before raising, so pcall cannot hide them; expected explicit watches and quest-navigation changes have separate counters. Tests cover explicit-click validation/failure/reselection, restoration, zone coverage, ID/name lookup, UI controls, NPC offers, activity warnings and timer deadlines. Warning checks cover independent preference persistence/output, immediate banner dismissal and absence of native-frame duplication.
 
-These checks do not prove actual client API behavior, layout or taint. Record those results separately in [IN_GAME_TEST.md](IN_GAME_TEST.md). The user explicitly authorized the 0.5.0 push and release on 2026-10-11 while the client retest remains pending.
+These checks do not prove actual client API behavior, layout or taint. Record those results separately in [IN_GAME_TEST.md](IN_GAME_TEST.md). The user authorized 0.5.1 implementation on 2026-10-13; the earlier 0.5.0 push/release authorization does not constitute a request to publish this build.

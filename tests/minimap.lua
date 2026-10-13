@@ -60,7 +60,7 @@ test("scaled cursor drag orbits the minimap and persists only on release", funct
     Minimap:SetSize(220, 160); Minimap:SetScale(1.25)
     Minimap.centerX, Minimap.centerY = 400, 320
     ns.db.minimapAngle = 315
-    ns.UI.frame:Hide()
+    ns.UI.Close()
     cursor(200, 0)
     button.scripts.OnMouseDown(button, "LeftButton")
     button.scripts.OnDragStart(button)
@@ -79,7 +79,7 @@ test("scaled cursor drag orbits the minimap and persists only on release", funct
     button.scripts.OnMouseDown(button, "LeftButton")
     button.scripts.OnClick(button, "LeftButton")
     assert(ns.UI.frame:IsShown(), "The next deliberate click must remain usable")
-    ns.UI.frame:Hide()
+    ns.UI.Close()
 end)
 
 test("mouse release and hidden launcher always remove temporary cursor sampling", function()
@@ -128,7 +128,7 @@ test("reset restores the default angle and later clicks still toggle", function(
     ns.Slash("reset")
     assert(ns.db.minimapAngle == 315)
     point(78 / math.sqrt(2), -78 / math.sqrt(2))
-    ns.UI.frame:Hide()
+    ns.UI.Close()
     button.scripts.OnMouseDown(button, "LeftButton")
     button.scripts.OnClick(button, "LeftButton")
     assert(ns.UI.frame:IsShown())

@@ -4,8 +4,10 @@ local ns, passed = TEST_NS, 0
 local saved = { categories = GetCategoryList, categoryCount = GetCategoryNumAchievements,
     achievement = GetAchievementInfo, criterionCount = GetAchievementNumCriteria,
     criterion = GetAchievementCriteriaInfo, metaType = CRITERIA_TYPE_ACHIEVEMENT,
-    maps = ns.WoW.questLines.maps }
+    maps = ns.WoW.questLines.maps, discovery = ns.WoW.AdvanceNameDiscovery }
 local fixture, counts
+-- Isolate achievement/name matching; runtime map discovery has its own integration tests.
+ns.WoW.AdvanceNameDiscovery = function() return "READY" end
 
 -- Prefix failures with this module's name while retaining the original assertion details.
 local function test(name, fn)
@@ -202,7 +204,7 @@ test("missing and failed APIs remain guarded", function()
     local results, status = finish("Trauerhöhe")
     assert(#results == 1 and results[1].chain == chain and status == "PARTIAL")
     results, status = finish("Unbekannt")
-    assert(#results == 0 and status == "UNSUPPORTED")
+    assert(#results == 0 and status == "PARTIAL")
     reset()
     GetAchievementCriteriaInfo = nil
     ns.WoW.OnNameSearchAchievementUpdate(true)
@@ -298,9 +300,53 @@ test("result limit reports partial coverage and keeps verified lines first", fun
     end
 end)
 
+-- A full name opens one verified line; a quest title is never used as a line alias.
+test("unique exact names return the full chain while partial names remain choices", function()
+    reset()
+    local chain = line("Trauerhöhe", 5506)
+    chain.sections[1].quests[1].title = "Zur Trauerhöhe"
+    finish("Trauerhöhe")
+    local _, _, exact = ns.WoW.SearchQuestLinesByName("TR AUERHÖHE")
+    assert(exact == nil)
+    local results, status
+    results, status, exact = ns.WoW.SearchQuestLinesByName("TRAUERHÖHE")
+    assert(status == "READY" and exact == chain and #ns.Model.Flatten(exact) == 2)
+    results, status, exact = ns.WoW.SearchQuestLinesByName("höhe")
+    assert(results[1].chain == chain and exact == nil)
+    results, status, exact = ns.WoW.SearchQuestLinesByName("Zur Trauerhöhe")
+    assert(#results == 0 and status == "EMPTY" and exact == nil)
+end)
+
+-- An unfinished exact match is still ambiguous, even when another match is selectable.
+test("multiple exact line IDs and pending exact membership prevent automatic opening", function()
+    reset()
+    line("Trauerhöhe", 5506)
+    ns.WoW.RegisterQuestLine(ns.LiveData.Pending(2248, 5507, "Trauerhöhe"))
+    finish("Trauerhöhe")
+    local _, _, exact = ns.WoW.SearchQuestLinesByName("Trauerhöhe")
+    assert(exact == nil)
+    line("Trauerhöhe", 5507)
+    _, _, exact = ns.WoW.SearchQuestLinesByName("Trauerhöhe")
+    assert(exact == nil)
+end)
+
+-- Multiple map contexts for the same Blizzard line must not create artificial ambiguity.
+test("the same line on multiple maps appears once with loaded membership", function()
+    reset()
+    ns.WoW.RegisterQuestLine(ns.LiveData.Pending(2214, 5506, "Trauerhöhe"))
+    local chain = line("Trauerhöhe", 5506)
+    finish("Trauerhöhe")
+    local results, _, exact = ns.WoW.SearchQuestLinesByName("Trauerhöhe")
+    assert(exact == chain)
+    local lines = 0
+    for _, result in ipairs(results) do if result.kind == "QUEST_LINE" then lines = lines + 1 end end
+    assert(lines == 1)
+end)
+
 GetCategoryList, GetCategoryNumAchievements = saved.categories, saved.categoryCount
 GetAchievementInfo, GetAchievementNumCriteria = saved.achievement, saved.criterionCount
 GetAchievementCriteriaInfo, CRITERIA_TYPE_ACHIEVEMENT = saved.criterion, saved.metaType
 ns.WoW.questLines.maps = saved.maps
+ns.WoW.AdvanceNameDiscovery = saved.discovery
 ns.WoW.OnNameSearchAchievementUpdate(true)
 print("Name-search behavior checks passed: " .. passed)

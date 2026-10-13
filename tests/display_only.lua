@@ -317,7 +317,7 @@ test("selector refresh and runtime row right-clicks remain read-only", function(
 end)
 
 test("selector minimap window movement and reset only change preferences", function()
-    ns.UI.frame:Hide()
+    ns.UI.Close()
     click(ns.Minimap.button, "LeftButton")
     assert(ns.UI.frame:IsShown())
     click(ns.Minimap.button, "RightButton")

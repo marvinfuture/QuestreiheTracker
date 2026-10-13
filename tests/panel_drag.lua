@@ -15,14 +15,15 @@ local function assertPosition(frame, expected)
 end
 local function count(frame, key) return rawget(frame, key) or 0 end
 local function panels()
-    ns.UI.frame:Show()
+    ns.UI.Open()
     if not ns.UI.selector or not ns.UI.selector:IsShown() then ns.UI.ChooseChain() end
     ns.UI.ShowLink(78743)
+    if not ns.UI.settings:IsShown() then ns.UI.ShowSettings() end
     return { { key = "selector", frame = ns.UI.selector },
-        { key = "link", frame = ns.UI.link } }
+        { key = "link", frame = ns.UI.link }, { key = "settings", frame = ns.UI.settings } }
 end
 
-test("all three windows register left-button dragging and move their own frame", function()
+test("all four windows register left-button dragging and move their own frame", function()
     local all = panels()
     all[#all + 1] = { frame = ns.UI.frame }
     for _, item in ipairs(all) do
@@ -109,7 +110,7 @@ test("saved popup positions are isolated validated preferences and reset to defa
         assert(item.frame.scripts.OnUpdate == nil)
     end
     assert(Mock.mutationCount == 0, table.concat(Mock.mutations, ", "))
-    ns.UI.frame:Hide()
+    ns.UI.Close()
     Mock.Flush()
 end)
 

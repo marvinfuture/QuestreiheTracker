@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.2 — 2026-10-13
+
+- Expanded name search from session-cached names to bounded runtime discovery of client map-hierarchy zone lines and verified accepted quest-log associations across zones. No fixed map, quest, achievement or story catalogue is added.
+- A unique exact full quest-line name entered in **Reihe** opens its whole verified member list after finite discovery settles, matching quest-ID lookup from any member quest. Partial names and several exact line IDs require selection; an incomplete matching line prevents automatic selection. Individual quest titles are not inferred line-name aliases.
+- Kept achievement/criteria matches informational, with runtime completion; arbitrary criteria assets never become quest IDs. Search cancellation and partial/loading states preserve the previous selection.
+- Included the gear settings, persistent manual window choice and automatic active-quest scrolling from the local 0.5.1 build below.
+
+Validation: the Lua 5.1 suite passes 190 counted behavioral cases (167 prior plus 23 new), four fresh-startup visibility combinations, the separate banner/startup/reload/missing-API checks and 54 static selftests. All 13 addon Lua files load; 28 C API members are reviewed, with zero forbidden mutations or invalid IDs. `python scripts/package.py --tag v0.5.2` builds the 16-file, 75,870-byte ZIP. Actual-client name/ID equivalence, Trauerhöhe coverage, layout and Lua/taint checks remain pending in [IN_GAME_TEST.md](docs/IN_GAME_TEST.md). The user explicitly authorized this implementation and a current GitHub release on 2026-10-13.
+
+## 0.5.1 — 2026-10-13
+
+- Added a gear button opening three saved settings: independent chat warnings, screen warnings and **Fenster geöffnet lassen**. The existing warning controls move from the main window into this panel.
+- Added default-on keep-open behavior for a deliberately opened main window, covering teleport, zone transitions, talent panels and incidental hides. With this setting enabled, Escape leaves the main window open and reload restores the saved manual opening choice. X, `/qrt` and minimap left-click can still close it, and a deliberately closed window stays closed. A fresh installation starts with the window closed. Disabling the setting permits ordinary closing and disables reload reopening.
+- Added automatic scrolling to a selected-line active quest: prefer the latest newly accepted or explicitly clicked quest while still active, otherwise the first active quest in supplied order. Scroll offsets use the laid-out rows and visible area. Refresh/reflow keeps the target visible and preserves the current position when the row is already in view.
+- Kept the existing name search unchanged in this local build; its redesign is included in 0.5.2 above.
+
+Validation: `python scripts/test.py` passes 167 counted behavioral cases (152 existing plus 15 new window/settings/scroll cases), four additional fresh-namespace startup visibility combinations, the existing banner/startup/reload/missing-API checks and 54 static guard selftests. All 12 addon Lua files load under Lua 5.1; 26 C API members are audited, with zero forbidden mutations or invalid IDs. `python scripts/package.py --tag v0.5.1` builds the 15-file, 72,260-byte ZIP successfully. Actual client checks remain pending in [IN_GAME_TEST.md](docs/IN_GAME_TEST.md), including teleport/reload/talents, intentional closing, settings and active-quest scrolling. The user initially authorized implementation on 2026-10-13 and subsequently authorized publication of these changes with 0.5.2.
+
 ## 0.5.0 — 2026-10-11
 
 - Added **Name** / **Suchen** alongside quest-ID lookup using client-supplied line names. Multiple matching lines with loaded membership are offered for explicit selection; **Zur Zonenliste** returns to zone selection.

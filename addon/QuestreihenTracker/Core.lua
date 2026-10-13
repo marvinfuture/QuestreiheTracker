@@ -1,6 +1,6 @@
 local addonName, ns = ...
 local L = ns.L
-ns.version = "0.5.0"
+ns.version = "0.5.2"
 
 -- Write localized addon feedback to the player's own chat frame.
 function ns.Print(message)
@@ -24,10 +24,13 @@ end
 -- Migrate and validate character preferences while deriving all progress from the client.
 function ns.ReadConfig(saved)
     saved = type(saved) == "table" and saved or {}
-    local config = { schemaVersion = 8, selectedChain = "none", scale = 1, minimapAngle = 315,
-        chatWarnings = true, screenWarnings = true, panelPositions = {} }
+    local config = { schemaVersion = 9, selectedChain = "none", scale = 1, minimapAngle = 315,
+        chatWarnings = true, screenWarnings = true, keepWindowOpen = true, windowOpen = false,
+        panelPositions = {} }
     if type(saved.chatWarnings) == "boolean" then config.chatWarnings = saved.chatWarnings end
     if type(saved.screenWarnings) == "boolean" then config.screenWarnings = saved.screenWarnings end
+    if type(saved.keepWindowOpen) == "boolean" then config.keepWindowOpen = saved.keepWindowOpen end
+    if type(saved.windowOpen) == "boolean" then config.windowOpen = saved.windowOpen end
     local selection = saved.liveSelection
     if type(selection) == "table" and ns.LiveData.IsID(selection.mapID)
         and ns.LiveData.IsID(selection.questLineID)
@@ -51,7 +54,7 @@ function ns.ReadConfig(saved)
     end
     config.position = readPosition(saved.position)
     if type(saved.panelPositions) == "table" then
-        for _, key in ipairs({ "selector", "link" }) do config.panelPositions[key] = readPosition(saved.panelPositions[key]) end
+        for _, key in ipairs({ "selector", "link", "settings" }) do config.panelPositions[key] = readPosition(saved.panelPositions[key]) end
     end
     return config
 end
@@ -72,6 +75,7 @@ function ns.CancelQuestLookup()
     ns.questLookup = nil
     ns.nameLookup = nil
     ns.WoW.ResetQuestLookup()
+    ns.WoW.ResetNameDiscovery()
 end
 
 -- Clear the addon selection while retaining preferences and Blizzard quest state.
@@ -93,7 +97,7 @@ local function resolveQuestLookup()
     lookup.status, lookup.pending = status, status == "LOADING" or status == "NOT_FOUND"
     if chain and status == "READY" then
         applySelection(chain)
-        ns.UI.frame:Show()
+        ns.UI.Open()
         if ns.UI.selector then ns.UI.selector:Hide() end
     end
 end
@@ -138,6 +142,15 @@ function ns.ToggleScreenWarnings()
     ns.UI.RenderScreenWarningSetting()
 end
 
+-- Retain the player's current window choice when enabling visibility restoration.
+function ns.ToggleKeepWindowOpen()
+    if not ns.initialized then return end
+    ns.db.keepWindowOpen = not ns.db.keepWindowOpen
+    if ns.db.keepWindowOpen then ns.db.windowOpen = ns.UI.frame:IsShown() end
+    ns.UI.UpdateWindowPersistence()
+    ns.UI.RenderKeepWindowOpenSetting()
+end
+
 -- Submit an explicit name query without replacing the currently displayed quest list.
 function ns.LookupName(text)
     ns.CancelQuestLookup()
@@ -145,12 +158,19 @@ function ns.LookupName(text)
     ns.Refresh()
 end
 
--- Advance the finite achievement index only while a submitted name search is active.
+-- Discover line names in finite batches and open a unique verified exact-name match.
 local function resolveNameLookup()
     local lookup = ns.nameLookup
     if not lookup then return end
-    lookup.results, lookup.status = ns.WoW.SearchQuestLinesByName(lookup.text)
-    if lookup.status == "LOADING" then ns.ScheduleRefresh() end
+    local exactChain
+    lookup.results, lookup.status, exactChain = ns.WoW.SearchQuestLinesByName(lookup.text)
+    if lookup.status == "LOADING" then ns.ScheduleRefresh()
+    elseif exactChain and not exactChain.loading and not exactChain.empty then
+        ns.CancelQuestLookup()
+        applySelection(exactChain)
+        ns.UI.Open()
+        if ns.UI.selector then ns.UI.selector:Hide() end
+    end
 end
 
 -- The only gameplay action: explicitly observing and navigating to a clicked member quest.
@@ -158,7 +178,9 @@ function ns.TrackQuest(questID)
     if not ns.initialized or not ns.LiveData.IsID(questID)
         or not ns.Model.Contains(ns.chain, questID) then return end
     local ok, status = ns.WoW.WatchQuest(questID)
-    if ok then ns.ScheduleRefresh()
+    if ok then
+        ns.UI.focusQuestID = questID
+        ns.ScheduleRefresh()
     else ns.Print(ns.L["WATCH_" .. status] or ns.L.WATCH_FAILED) end
 end
 
@@ -171,6 +193,7 @@ function ns.Refresh()
     if ns.chain.runtime then ns.chain = ns.WoW.GetQuestLine(ns.chain.id) or ns.chain end
     ns.snapshot = ns.WoW.Snapshot(ns.chain)
     ns.result = ns.Model.Evaluate(ns.chain, ns.snapshot)
+    ns.UI.RestoreOpenState()
     ns.UI.Render(ns.result)
     ns.UI.RenderSelector()
     ns.UI.RenderWarning()
@@ -247,7 +270,7 @@ function ns.Slash(text)
     command = string.lower(command)
     if command == "" then ns.UI.Toggle()
     elseif command == "zone" then
-        ns.UI.frame:Show()
+        ns.UI.Open()
         ns.DiscoverZone(true)
         if not ns.UI.selector or not ns.UI.selector:IsShown() then ns.UI.ChooseChain() end
     elseif command == "debug" then
@@ -299,16 +322,26 @@ events:SetScript("OnEvent", function(_, event, ...)
         ns.Refresh()
         ns.Print(L.READY)
     elseif ns.initialized then
-        if event == "QUESTLINE_UPDATE" then ns.WoW.OnQuestLineUpdate(...)
+        if event == "QUESTLINE_UPDATE" then
+            ns.WoW.OnQuestLineUpdate(...)
+            ns.WoW.OnNameDiscoveryQuestLineUpdate(...)
         elseif event == "QUEST_DATA_LOAD_RESULT" then
             ns.WoW.OnQuestDataLoadResult(...)
             ns.WoW.OnQuestLookupDataLoadResult(...)
+            ns.WoW.OnNameDiscoveryQuestLineUpdate(false)
+        elseif event == "QUEST_LOG_UPDATE" or event == "QUEST_POI_UPDATE" then
+            ns.WoW.OnNameDiscoveryQuestLineUpdate(false)
         elseif event == "ACHIEVEMENT_EARNED" or event == "CRITERIA_UPDATE" then
             ns.WoW.OnNameSearchAchievementUpdate()
         elseif event == "RECEIVED_ACHIEVEMENT_LIST" then
             ns.WoW.OnNameSearchAchievementUpdate(true)
         elseif event == "PLAYER_LOGIN" or event == "ZONE_CHANGED_NEW_AREA" or event == "PLAYER_ENTERING_WORLD" then
             ns.WoW.DiscoverZone(event == "PLAYER_LOGIN")
+        elseif event == "QUEST_ACCEPTED" then
+            local questID = ...
+            if ns.LiveData.IsID(questID) and ns.Model.Contains(ns.chain, questID) then
+                ns.UI.focusQuestID = questID
+            end
         elseif event == "QUEST_DETAIL" then ns.WoW.OnDetail(...)
         elseif event == "GOSSIP_SHOW" then ns.WoW.SetGossipOffers()
         elseif event == "GOSSIP_CLOSED" or event == "QUEST_FINISHED" then ns.WoW.ClearOffers() end

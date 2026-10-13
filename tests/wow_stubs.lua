@@ -84,7 +84,10 @@ function methods:GetPoint()
 end
 function methods:SetScale(value) self.scale = value end
 function methods:SetValue(value) self.value = value end
+function methods:SetMinMaxValues(minimum, maximum) self.minimum, self.maximum = minimum, maximum end
 function methods:SetVerticalScroll(value) self.scroll = value end
+function methods:GetVerticalScroll() return rawget(self, "scroll") or 0 end
+function methods:UpdateScrollChildRect() self.scrollChildUpdates = (rawget(self, "scrollChildUpdates") or 0) + 1 end
 function methods:SetText(value) assert(type(value) == "string"); self.textValue = value end
 function methods:SetFontObject(value) self.fontObject = value end
 function methods:GetStringHeight()
@@ -104,6 +107,7 @@ function methods:SetMaxLetters(value) self.maxLetters = value end
 function methods:GetText() return self.textValue end
 function methods:SetTextColor(...) self.textColor = { ... } end
 function methods:SetTexture(value) self.textureValue = value end
+function methods:SetAtlas(value) self.atlasValue = value end
 function methods:GetTexture() return self.textureValue end
 function methods:SetTexCoord(...) self.texCoords = { ... } end
 function methods:AddLine(value)
@@ -137,9 +141,13 @@ function methods:Hide()
 end
 function methods:IsShown() return self.shown end
 function methods:SetShown(value) if value then self:Show() else self:Hide() end end
-function CreateFrame(kind, name, parent)
+function CreateFrame(kind, name, parent, template)
     local value = widget(kind)
     value.parent = parent
+    if template == "UIPanelScrollFrameTemplate" then
+        value.ScrollBar = widget("Slider")
+        value.ScrollBar.parent = value
+    end
     Mock.frames[#Mock.frames + 1] = value
     if name then _G[name] = value end
     return value

@@ -67,6 +67,7 @@ lua.execute((root / "tests" / "warning_banner.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "warning_settings.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "screen_warning_settings.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "name_search.lua").read_text(encoding="utf-8"))
+lua.execute((root / "tests" / "name_discovery.lua").read_text(encoding="utf-8"))
 lua.execute((root / "tests" / "name_search_ui.lua").read_text(encoding="utf-8"))
 assert lua.globals().Mock.mutationCount == 0, "A game mutation API was attempted during tests"
 assert lua.globals().Mock.invalidIDCalls == 0, "An invalid ID was passed to a game API"
@@ -219,7 +220,7 @@ local ns = TEST_NS
 ns.eventFrame.scripts.OnEvent(ns.eventFrame, "ADDON_LOADED", "QuestreihenTracker")
 assert(ns.initialized and ns.chain.empty and ns.chain.id == "none")
 assert(ns.result.total == 0 and ns.result.completed == 0 and not ns.result.done)
-assert(ns.db.selectedChain == "none" and ns.db.liveSelection == nil and ns.db.schemaVersion == 8)
+assert(ns.db.selectedChain == "none" and ns.db.liveSelection == nil and ns.db.schemaVersion == 9)
 assert(ns.db.chatWarnings == true, "Legacy preferences must retain default-on chat warnings")
 assert(ns.db.screenWarnings == true, "Legacy preferences must retain default-on screen warnings")
 assert(ns.db.completed == nil and ns.db.titles == nil and ns.db.warnUnrelated == nil)
@@ -233,4 +234,36 @@ assert(#Mock.timers == 0 and Mock.calls == 0 and Mock.mutationCount == 0 and Moc
 for _, frame in ipairs(Mock.frames) do assert(frame.scripts.OnUpdate == nil) end
 print("Missing-API startup and legacy preference migration test passed.")
 """)
+# Exercise persistence and scroll behavior in an isolated namespace and empty API cache.
+window_lua = LuaRuntime(unpack_returned_tuples=True)
+window_lua.execute((root / "tests" / "wow_stubs.lua").read_text(encoding="utf-8"))
+window_namespace = window_lua.table()
+window_loader = window_lua.eval(
+    "function(source, name, ns) local fn, err=loadstring(source, '@'..name); assert(fn,err); fn('QuestreihenTracker', ns) end")
+for name in listed:
+    window_loader((addon / name).read_text(encoding="utf-8"), name, window_namespace)
+window_namespace.eventFrame.scripts.OnEvent(window_namespace.eventFrame, "ADDON_LOADED", "QuestreihenTracker")
+window_lua.globals().TEST_NS = window_namespace
+window_lua.execute((root / "tests" / "window_persistence_scroll.lua").read_text(encoding="utf-8"))
+
+# Reboot with each saved visibility combination so restoration is tested at addon load.
+for keep_open, was_open in ((True, True), (True, False), (False, True), (False, False)):
+    visibility_lua = LuaRuntime(unpack_returned_tuples=True)
+    visibility_lua.execute((root / "tests" / "wow_stubs.lua").read_text(encoding="utf-8"))
+    visibility_lua.globals().QuestreihenTrackerDB = visibility_lua.table_from({
+        "keepWindowOpen": keep_open, "windowOpen": was_open,
+        "chatWarnings": False, "screenWarnings": False})
+    visibility_namespace = visibility_lua.table()
+    visibility_loader = visibility_lua.eval(
+        "function(source, name, ns) local fn, err=loadstring(source, '@'..name); assert(fn,err); fn('QuestreihenTracker', ns) end")
+    for name in listed:
+        visibility_loader((addon / name).read_text(encoding="utf-8"), name, visibility_namespace)
+    visibility_namespace.eventFrame.scripts.OnEvent(
+        visibility_namespace.eventFrame, "ADDON_LOADED", "QuestreihenTracker")
+    visibility_frame = visibility_namespace.UI.frame
+    assert bool(visibility_frame.IsShown(visibility_frame)) == (keep_open and was_open)
+    visibility_lua.globals().Mock.Flush()
+    assert bool(visibility_frame.IsShown(visibility_frame)) == (keep_open and was_open)
+    assert visibility_namespace.db.chatWarnings is False and visibility_namespace.db.screenWarnings is False
+print("Saved visibility startup combinations passed: 4")
 print(f"Lua 5.1 syntax + TOC load: {len(listed)} files; no unexpected globals.")

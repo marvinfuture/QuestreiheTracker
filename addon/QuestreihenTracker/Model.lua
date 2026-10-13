@@ -72,7 +72,8 @@ function Model.Evaluate(chain, snapshot)
         if status == "UNKNOWN" and offered[id] == true then status = "AVAILABLE" end
         local inferred = status == "UNKNOWN" and id == chain.suggestedQuestID
             and completed[id] == false and active[id] == false
-        local row = { quest = quest, questID = id, status = status, progressStatus = progress, inferredNext = inferred }
+        local row = { quest = quest, questID = id, status = status, progressStatus = progress,
+            accepted = active[id] == true, inferredNext = inferred }
         result.rows[#result.rows + 1], result.byID[id] = row, row
         if status == "ACTIVE" then result.active[#result.active + 1] = row end
         if inferred then result.next[#result.next + 1] = row end

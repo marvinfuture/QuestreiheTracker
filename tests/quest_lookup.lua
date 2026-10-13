@@ -443,6 +443,16 @@ test("thrown title requests and malformed line metadata are contained", function
     assert(ns.WoW.GetQuestLine(liveKey) == nil)
 end)
 
+-- Any member ID, including a later quest in a fresh session, opens the whole supplied list.
+test("a later member ID loads the entire line without a previously cached first quest", function()
+    reverseFixture(78564)
+    ns.LookupQuest(78564)
+    assert(ns.chain.questLineID == lineID and ns.result.total == 3)
+    local quests = ns.Model.Flatten(ns.chain)
+    assert(quests[1].questID == 78562 and quests[2].questID == 78563 and quests[3].questID == 78564)
+    assert(ns.db.liveSelection.questLineID == lineID)
+end)
+
 if ns.UI.selector then ns.UI.selector:Hide() end
 ns.CancelQuestLookup()
 Mock = saved.mock

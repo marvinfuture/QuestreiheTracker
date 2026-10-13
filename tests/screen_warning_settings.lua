@@ -38,7 +38,7 @@ local function restore()
     UI.Restore()
     UI.Render(ns.result)
     UI.RenderSelector()
-    UI.frame:SetShown(saved.shown)
+    if saved.shown then UI.Open() else UI.Close() end
     if UI.selector then UI.selector:SetShown(saved.selectorShown == true) end
     if UI.link then UI.link:SetShown(saved.linkShown == true) end
     assert(#Mock.timers == 0 and ns.timer == nil and ns.timerDue == nil)
@@ -104,11 +104,11 @@ local function accept(questID)
 end
 
 local ok, message = pcall(function()
-    test("schema 8 defaults on and retains only explicit boolean preferences", function()
+    test("schema 9 defaults on and retains only explicit boolean preferences", function()
         for _, value in ipairs({ {}, { schemaVersion = 7 }, { screenWarnings = "false" },
             { screenWarnings = 0 }, { screenWarnings = 1 }, { screenWarnings = {} } }) do
             local config = ns.ReadConfig(value)
-            assert(config.schemaVersion == 8 and config.screenWarnings == true)
+            assert(config.schemaVersion == 9 and config.screenWarnings == true)
         end
         assert(ns.ReadConfig(nil).screenWarnings == true)
         assert(ns.ReadConfig(false).screenWarnings == true)
@@ -120,13 +120,16 @@ local ok, message = pcall(function()
 
     test("button persists its choice independently and restores its label after reload", function()
         prepare(false, true)
-        assert(UI.screenWarningsButton.parent == UI.frame and UI.screenWarningsButton:IsEnabled())
+        assert(UI.screenWarningsButton.parent == UI.settings and UI.screenWarningsButton:IsEnabled())
+        assert(UI.screenWarningsButton:GetWidth() == 288)
+        local point, _, _, x, y = UI.screenWarningsButton:GetPoint()
+        assert(point == "TOPLEFT" and x == 16 and y == -88)
         assert(UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_ON)
         clickScreen()
         assert(ns.db.screenWarnings == false and QuestreihenTrackerDB.screenWarnings == false)
         assert(ns.db.chatWarnings == false and UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_OFF)
         local reloaded = ns.ReadConfig(QuestreihenTrackerDB)
-        assert(reloaded ~= ns.db and reloaded.schemaVersion == 8)
+        assert(reloaded ~= ns.db and reloaded.schemaVersion == 9)
         assert(reloaded.chatWarnings == false and reloaded.screenWarnings == false)
         ns.db, QuestreihenTrackerDB = reloaded, reloaded
         UI.Restore()
@@ -225,7 +228,7 @@ local ok, message = pcall(function()
     test("reset restores both default-on choices and both visible labels", function()
         prepare(false, false)
         ns.Slash("reset")
-        assert(ns.db.schemaVersion == 8 and ns.db.chatWarnings == true and ns.db.screenWarnings == true)
+        assert(ns.db.schemaVersion == 9 and ns.db.chatWarnings == true and ns.db.screenWarnings == true)
         assert(QuestreihenTrackerDB.chatWarnings == true and QuestreihenTrackerDB.screenWarnings == true)
         assert(UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_ON)
         assert(UI.screenWarningsButton:GetText() == ns.L.SCREEN_WARNINGS_ON)

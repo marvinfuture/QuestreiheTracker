@@ -133,7 +133,8 @@ end
 local function requestMap(lookup, mapID)
     if mapID and not lookup.maps[mapID] then
         lookup.maps[mapID] = true
-        local map = WoW.RequestQuestLineMap(mapID)
+        local map = lookup.nameDiscovery and WoW.questLines.maps[mapID] or nil
+        if not map or not map.requested or map.requestFailed then map = WoW.RequestQuestLineMap(mapID) end
         if not map or map.error then return map and map.error or "ERROR" end
     end
 end

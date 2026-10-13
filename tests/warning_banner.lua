@@ -11,7 +11,7 @@ UI.ShowWarning("Warning timing fixture")
 local start = GetTime()
 assert(UI.warning:IsShown() and UI.warningDuration == 5)
 assert(#Mock.timers == 1)
-ns.UI.frame:Hide()
+UI.Close()
 Mock.Advance(1)
 assert(UI.warning:IsShown(), "Closing the tracker must not hide its warning")
 for index = 1, 12 do ns.ScheduleRefresh() end
@@ -50,7 +50,7 @@ ns.ClearSelection()
 assert(not UI.warning:IsShown() and UI.warningExpires == nil and #Mock.timers == 0)
 ns.chain, ns.db = saved.chain, saved.db
 QuestreihenTrackerDB = ns.db
-UI.frame:SetShown(saved.shown)
+if saved.shown then UI.Open() else UI.Close() end
 Mock.Flush()
 for _, frame in ipairs(Mock.frames) do assert(frame.scripts.OnUpdate == nil) end
 assert(Mock.mutationCount == 0 and Mock.invalidIDCalls == 0)

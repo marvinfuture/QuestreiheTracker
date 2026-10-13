@@ -49,7 +49,7 @@ end
 
 -- Restore the independent saved positions of already-created selector and link panels.
 function UI.RestorePanelPositions()
-    for _, key in ipairs({ "selector", "link" }) do
+    for _, key in ipairs({ "selector", "link", "settings" }) do
         if UI[key] then UI.RestorePanelPosition(UI[key], key) end
     end
 end

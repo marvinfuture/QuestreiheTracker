@@ -1,6 +1,24 @@
 # Roadmap
 
-## Current: 0.5.0 — neue Vorschläge umgesetzt
+## Current: 0.5.2 — Questreihen per Name und Quest-ID aufrufen
+
+Am 13. Oktober 2026 hat der Nutzer die Namenssuche mit „Go“ freigegeben und ein aktuelles GitHub-Release beauftragt. Gemeint ist die gesamte vom Client bestätigte Questreihe: Eine Quest-ID ihrer ersten oder einer anderen Quest ruft die ganze gelieferte Liste auf; der volle Questreihenname soll dieselbe Liste öffnen. Das Nutzerbeispiel ist **Trauerhöhe**, dessen erste Quest nach seiner Angabe **Zur Trauerhöhe** heißt. Der einzelne Questtitel wird nicht als Namensalias fest eingebaut.
+
+1. **Namen dynamisch entdecken:** Die Suche liest Zonen aus der Client-Kartenhierarchie und bestätigt zusätzlich Questreihen angenommener Questlog-Einträge auch außerhalb der aktuellen Zone. Karten und Questkandidaten werden in begrenzten Paketen verarbeitet; es gibt keinen festen Quest-/Erfolgskatalog.
+2. **Eindeutigen vollen Namen öffnen:** Nach Ende der begrenzten Suche öffnet ein eindeutiger exakter Questreihenname mit geladener Mitgliedschaft die ganze Questreihe. Teilnamen und mehrere exakte Reihen-IDs bleiben auswählbare Treffer. Ein passender Treffer mit noch fehlender Mitgliedschaft verhindert eine vorschnelle automatische Auswahl.
+3. **Unsicherheit sichtbar halten:** Fehlende Daten und Suchgrenzen führen zu Lade-/Teilzuständen. Erfolgs- und Kriteriennamen bleiben Informationen; ihre IDs werden nicht als Quest-IDs verwendet. Eine gelieferte Questliste bestätigt keine umfassende Vorgeschichte oder Voraussetzungen über mehrere Reihen hinweg.
+
+0.5.2 enthält außerdem die unten dokumentierten Einstellungen, das Fensterverhalten und automatische Scrollen aus dem lokalen 0.5.1-Stand. Die Offlineprüfungen mit 190 gezählten Verhaltensfällen, vier zusätzlichen Startkombinationen und 54 statischen Prüfungen sind erfolgreich; alle 13 Addon-Lua-Dateien laden unter Lua 5.1. Der Paketbau mit 16 Dateien und 75.870 Bytes ist erfolgreich. Die tatsächliche Clientprüfung, insbesondere die Namenssuche nach Trauerhöhe, steht noch aus. Git-Push und Release sind durch den aktuellen Auftrag ausdrücklich freigegeben.
+
+## Included: 0.5.1 — Einstellungen, Fensterverhalten und automatisches Scrollen
+
+Am 13. Oktober 2026 hat der Nutzer diese Umsetzung mit „Go“ freigegeben. Die Offlineprüfungen des damaligen lokalen Stands mit 167 gezählten Verhaltensfällen, vier zusätzlichen Startkombinationen und 54 statischen Prüfungen waren erfolgreich; alle zwölf Addon-Lua-Dateien luden unter Lua 5.1, und das lokale Paket mit 15 Dateien wurde gebaut. Die tatsächliche Clientprüfung steht noch aus. Die folgenden Änderungen werden mit 0.5.2 veröffentlicht.
+
+1. **Fenster geöffnet lassen:** Bei aktivierter Einstellung bleibt ein bewusst geöffnetes Hauptfenster bei Teleport, Zonenwechsel, Talenten und gewöhnlichen Schließversuchen durch die Spieloberfläche offen. Auch Escape schließt das Hauptfenster dann nicht. Nach `/reload` wird der zuletzt bewusst gewählte Öffnungszustand wiederhergestellt. Schließen über X, `/qrt` oder Minimap-Linksklick bleibt möglich und wird gespeichert; ein bewusst geschlossenes Fenster bleibt geschlossen. Die Einstellung ist zunächst **An**, das Fenster einer neuen Installation zunächst geschlossen. Bei **Aus** sind normale Spiel-/Escape-Schließvorgänge möglich und es gibt keine automatische Wiederöffnung nach Reload.
+2. **Einstellungen über einen Zahnradbutton öffnen:** Im Hauptfenster öffnet ein Zahnrad die Einstellungen mit **Chatwarnung**, **Bildschirmwarnung** und **Fenster geöffnet lassen**, jeweils **An/Aus**. Die bisherigen Warnungsschalter ziehen dorthin um und bleiben unabhängig voneinander pro Charakter gespeichert.
+3. **Automatisch zur angenommenen Quest scrollen:** Beim Aktualisieren und Anpassen der Questzeilen wird die Scrollposition so angepasst, dass die aktive Quest in der angezeigten Questreihe sichtbar ist. Die zuletzt neu angenommene oder ausdrücklich angeklickte noch aktive Quest erhält Vorrang, andernfalls die erste aktive Quest in der gelieferten Reihenfolge. Manuelles Scrollen bleibt möglich; bei der nächsten Aktualisierung wird ein nicht mehr sichtbares Ziel wieder in den sichtbaren Bereich gebracht. Ist es bereits sichtbar, bleibt die Position erhalten. Questfortschritt und geänderte Zeilenhöhen werden berücksichtigt; die Scrollbar folgt der tatsächlichen Position.
+
+## Previous: 0.5.0 — neue Vorschläge umgesetzt
 
 Am 11. Oktober 2026 hat der Nutzer mit „Go“ alle sechs zuletzt gesammelten Vorschläge zur Umsetzung freigegeben und anschließend Git-Push sowie ein neues Release beauftragt. Die Änderungen sind für 0.5.0 umgesetzt: vorhandene Fensterübersicht, Namenssuche, Erfolgshinweise, Funktionskommentare, Namensbereinigung und getrennte Warnungsschalter. Die Offlineprüfungen mit 152 Verhaltensfällen, 54 statischen Prüfungen und der Paketbau mit 14 Dateien sind erfolgreich. Die Freigabe umfasst Git-Push und das Release v0.5.0. Die tatsächliche Clientprüfung steht noch aus.
 
@@ -31,9 +49,9 @@ Am 11. Oktober 2026 hat der Nutzer mit „Go“ alle sechs zuletzt gesammelten V
 
 ## Next: user's client test
 
-Run [IN_GAME_TEST.md](docs/IN_GAME_TEST.md), especially name search and achievement-based results, the two independent saved warning switches and the title/dividers at minimum/default sizes. Also check row-click navigation and subsequent **Verfolgte Quest** lookup, removal/reload and delayed names. Record actual client build, results and Lua/taint issues separately from offline tests.
+Run [IN_GAME_TEST.md](docs/IN_GAME_TEST.md), especially identical full membership via first/other quest ID and exact line name, Trauerhöhe discovery from another zone, ambiguous/partial names and cancellation during delayed discovery. Also check the gear settings, persistent manual window choice during teleport/reload/talents, intentional closing, automatic scrolling, warning outputs, row-click navigation, removal/reload and delayed names. Record actual client build, results and Lua/taint issues separately from offline tests.
 
-Collect any remaining client fixes. The user explicitly authorized the v0.5.0 Git push and new release on 2026-10-11.
+Collect any remaining client fixes. The current authorization covers Git push and the v0.5.2 release, including the local 0.5.1 changes.
 
 ## Umgesetzte Änderungsvorschläge
 
@@ -70,7 +88,7 @@ Im WoW-Client noch prüfen: Ausrichtung und Lesbarkeit bei langen Titeln, Mindes
 
 ## Later, only if requested
 
-Consider additional runtime zone selection or improved coverage of client-supplied lists. Avoid recreating a bundled quest database, settings panel or extra list modes.
+Consider additional runtime zone selection or improved coverage of client-supplied lists. Avoid recreating a bundled quest database or extra list modes. The settings panel is included in 0.5.1 above.
 
 ## Umgesetzte neue Vorschläge — 0.5.0
 

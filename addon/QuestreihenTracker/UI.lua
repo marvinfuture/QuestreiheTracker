@@ -16,8 +16,13 @@ function UI.Restore()
     UI.Layout(UI.frame:GetWidth())
     UI.RenderChatWarningSetting()
     UI.RenderScreenWarningSetting()
+    UI.RenderKeepWindowOpenSetting()
+    UI.UpdateWindowPersistence()
     if not ns.db.screenWarnings then UI.ClearWarning() end
     UI.RestorePanelPositions()
+    UI.restoringOpenState = true
+    UI.frame:SetShown(ns.db.keepWindowOpen and ns.db.windowOpen)
+    UI.restoringOpenState = nil
 end
 
 -- Save the main window's final size and anchor when a move or resize ends.
@@ -39,15 +44,12 @@ end
 -- Fit controls and row text to the main window's current width.
 function UI.Layout(width)
     local textWidth, contentWidth = width - 32, width - 60
-    UI.title:SetWidth(width - 66)
-    UI.titleUnderline:SetWidth(width - 66)
+    UI.title:SetWidth(width - 100)
+    UI.titleUnderline:SetWidth(width - 100)
     UI.controlsDivider:SetWidth(textWidth)
     UI.questDivider:SetWidth(textWidth)
     UI.select:SetWidth(textWidth - 92)
-    local actionWidth = math.floor((textWidth - 8) / 2)
-    UI.trackedButton:SetWidth(actionWidth)
-    UI.chatWarningsButton:SetWidth(textWidth - actionWidth - 8)
-    UI.screenWarningsButton:SetWidth(textWidth)
+    UI.trackedButton:SetWidth(textWidth)
     UI.bar:SetWidth(textWidth)
     UI.count:SetWidth(textWidth)
     UI.notice:SetWidth(textWidth)
@@ -78,15 +80,76 @@ function UI.LayoutRows()
         row:SetHeight(titleHeight + (row.hasQuest and 26 or 12))
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", UI.content, "TOPLEFT", 0, -offset)
+        row.offset = offset
         row.separator:SetShown(row.hasQuest and index < #UI.renderedRows)
         offset = offset + row:GetHeight() + 4
     end
     if UI.content then UI.content:SetHeight(math.max(offset > 0 and offset - 4 or 1, 1)) end
+    UI.ScrollToActiveQuest()
 end
 
--- Toggle the main tracker window without changing the selected quest line.
+-- Keep the chosen accepted quest visible and synchronize the native scrollbar.
+function UI.ScrollToActiveQuest()
+    if not UI.scroll or not UI.content then return end
+    UI.scroll:UpdateScrollChildRect()
+    local target, first
+    for _, row in ipairs(UI.renderedRows or {}) do
+        if row.active then
+            first = first or row
+            if row.questID == UI.focusQuestID then target = row end
+        end
+    end
+    target = target or first
+    local viewport = UI.scroll:GetHeight()
+    if viewport <= 0 then return end
+    local limit = math.max(0, UI.content:GetHeight() - viewport)
+    local position = math.max(0, math.min(UI.scroll:GetVerticalScroll(), limit))
+    if target then
+        local top, bottom = target.offset, target.offset + target:GetHeight()
+        if top < position or target:GetHeight() > viewport then position = top
+        elseif bottom > position + viewport then position = bottom - viewport end
+        position = math.max(0, math.min(position, limit))
+    end
+    UI.scroll:SetVerticalScroll(position)
+    if UI.scroll.ScrollBar then
+        UI.scroll.ScrollBar:SetMinMaxValues(0, limit)
+        UI.scroll.ScrollBar:SetValue(position)
+    end
+end
+
+-- Record an explicit opening so it can survive unrelated game-window closures.
+function UI.Open()
+    ns.db.windowOpen = true
+    UI.frame:Show()
+end
+
+-- Record an explicit close before hiding so persistence cannot reopen the tracker.
+function UI.Close()
+    ns.db.windowOpen = false
+    ns.CancelQuestLookup()
+    UI.frame:Hide()
+end
+
+-- Reopen a requested tracker once during refresh without recursive progress updates.
+function UI.RestoreOpenState()
+    if not ns.db.keepWindowOpen or not ns.db.windowOpen or UI.frame:IsShown() then return end
+    UI.restoringOpenState = true
+    UI.frame:Show()
+    UI.restoringOpenState = nil
+end
+
+-- Allow Blizzard's normal closing behavior only when persistence is switched off.
+function UI.UpdateWindowPersistence()
+    if not UISpecialFrames then return end
+    for index = #UISpecialFrames, 1, -1 do
+        if UISpecialFrames[index] == "QuestreihenTrackerFrame" then table.remove(UISpecialFrames, index) end
+    end
+    if not ns.db.keepWindowOpen then UISpecialFrames[#UISpecialFrames + 1] = "QuestreihenTrackerFrame" end
+end
+
+-- Toggle the tracker through the same explicit intent used by the title-bar close button.
 function UI.Toggle()
-    UI.frame:SetShown(not UI.frame:IsShown())
+    if UI.frame:IsShown() then UI.Close() else UI.Open() end
 end
 
 -- Reflect the independently saved chat warning preference in its button label.
@@ -108,6 +171,7 @@ function UI.Create()
     if UI.frame then return end
     local frame = UI.Panel("QuestreihenTrackerFrame", 360, 500)
     UI.frame = frame
+    frame:Hide()
     frame:SetFrameStrata("MEDIUM")
     frame:SetMovable(true)
     frame:SetResizable(true)
@@ -125,22 +189,29 @@ function UI.Create()
         saveGeometry()
     end)
     -- Refresh live progress whenever the player reopens the tracker.
-    frame:SetScript("OnShow", function() if ns.initialized then ns.Refresh() end end)
+    frame:SetScript("OnShow", function()
+        ns.db.windowOpen = true
+        if ns.initialized and not UI.restoringOpenState then ns.Refresh() end
+    end)
     -- Finish active geometry changes and close auxiliary panels with the tracker.
     frame:SetScript("OnHide", function()
         stopSizingOrMoving()
         if UI.link then UI.link:Hide() end
         if UI.selector then UI.selector:Hide() end
+        if UI.settings then UI.settings:Hide() end
+        if not ns.db.keepWindowOpen then ns.db.windowOpen = false end
+        if not UI.restoringOpenState and ns.db.keepWindowOpen and ns.db.windowOpen then ns.ScheduleRefresh() end
     end)
-    if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = "QuestreihenTrackerFrame" end
     UI.title = UI.Text(frame, "title", 16, -13, 374)
     UI.title:SetHeight(24)
     UI.title:SetText(L.TITLE)
     UI.titleUnderline = UI.Rule(frame, 294, 16, -38, { 0.85, 0.69, 0.38, 0.7 })
     -- Close the main window through its title-bar button.
-    local close = UI.Button(frame, "X", 25, 400, -10, function() frame:Hide() end)
+    local close = UI.Button(frame, "X", 25, 400, -10, UI.Close)
+    UI.closeButton = close
     close:ClearAllPoints()
     close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -15, -10)
+    UI.CreateSettings()
     UI.select = UI.Button(frame, "", 316, 16, -46, UI.ChooseChain)
     -- Show the full selected line name when the button label is clipped.
     UI.select:SetScript("OnEnter", function(self)
@@ -173,32 +244,10 @@ function UI.Create()
     end)
     -- Dismiss the tracked-quest tooltip when leaving its button.
     UI.trackedButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    UI.chatWarningsButton = UI.Button(frame, "", 160, 184, -76, ns.ToggleChatWarnings)
-    UI.chatWarningsButton:ClearAllPoints()
-    UI.chatWarningsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -16, -76)
-    -- Explain the chat switch and its independence from screen warnings.
-    UI.chatWarningsButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
-        GameTooltip:SetText(self:GetText())
-        GameTooltip:AddLine(L.CHAT_WARNINGS_HINT, 0.85, 0.85, 0.85, true)
-        GameTooltip:Show()
-    end)
-    -- Dismiss the chat warning tooltip when leaving its button.
-    UI.chatWarningsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    UI.screenWarningsButton = UI.Button(frame, "", 328, 16, -106, ns.ToggleScreenWarnings)
-    -- Explain the banner switch independently of the chat setting.
-    UI.screenWarningsButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
-        GameTooltip:SetText(self:GetText())
-        GameTooltip:AddLine(L.SCREEN_WARNINGS_HINT, 0.85, 0.85, 0.85, true)
-        GameTooltip:Show()
-    end)
-    -- Remove the tooltip when the pointer leaves the banner switch.
-    UI.screenWarningsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    UI.controlsDivider = UI.Rule(frame, 328, 16, -137)
+    UI.controlsDivider = UI.Rule(frame, 328, 16, -107)
     local bar = CreateFrame("StatusBar", nil, frame)
     bar:SetSize(328, 16)
-    bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -145)
+    bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -115)
     bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
     bar:SetStatusBarColor(0.3, 0.7, 0.5)
     bar:SetMinMaxValues(0, 100)
@@ -209,14 +258,14 @@ function UI.Create()
     UI.percent:ClearAllPoints()
     UI.percent:SetPoint("CENTER", bar, "CENTER", 0, 0)
     UI.percent:SetJustifyH("CENTER")
-    UI.count = UI.Text(frame, nil, 16, -166, 328)
+    UI.count = UI.Text(frame, nil, 16, -136, 328)
     UI.count:SetHeight(18)
-    UI.notice = UI.Text(frame, nil, 16, -187, 328)
+    UI.notice = UI.Text(frame, nil, 16, -157, 328)
     UI.notice:SetHeight(32)
     UI.notice:SetTextColor(0.7, 0.7, 0.7)
-    UI.questDivider = UI.Rule(frame, 328, 16, -225)
+    UI.questDivider = UI.Rule(frame, 328, 16, -195)
     UI.scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    UI.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -233)
+    UI.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -203)
     UI.scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -36, 24)
     UI.content = CreateFrame("Frame", nil, UI.scroll)
     UI.content:SetSize(380, 1)
@@ -250,7 +299,6 @@ function UI.Create()
     -- Reflow controls and quest rows whenever the main window width changes.
     frame:SetScript("OnSizeChanged", function(_, width) UI.Layout(width) end)
     UI.Restore()
-    frame:Hide()
 end
 
 -- Choose the localized progress label without asserting quest availability.
@@ -348,6 +396,7 @@ function UI.Render(result)
         row.text:SetTextColor(1, 0.86, 0.55)
         row.subtext:SetText("")
         row.questID, row.tooltip = nil, nil
+        row.active = item ~= nil and item.accepted == true
         if item then
             row.questID = item.questID
             local color = colors[item.status] or colors.UNKNOWN

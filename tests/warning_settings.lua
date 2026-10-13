@@ -32,9 +32,9 @@ test("new and legacy configurations default to chat on; only booleans are retain
     assert(ns.ReadConfig({ chatWarnings = true }).chatWarnings == true)
 end)
 
-test("main-window callback changes the saved preference and its visible label", function()
+test("settings callback changes the saved preference and its visible label", function()
     config(nil)
-    assert(UI.chatWarningsButton.parent == UI.frame and UI.chatWarningsButton:IsEnabled())
+    assert(UI.chatWarningsButton.parent == UI.settings and UI.chatWarningsButton:IsEnabled())
     assert(UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_ON)
     click()
     assert(ns.db.chatWarnings == false and QuestreihenTrackerDB.chatWarnings == false)
@@ -47,13 +47,13 @@ test("main-window callback changes the saved preference and its visible label", 
     assert(ns.db.chatWarnings == true and UI.chatWarningsButton:GetText() == ns.L.CHAT_WARNINGS_ON)
 end)
 
-test("both actions share one row at minimum dimensions", function()
+test("settings keep chat controls separate from the full-width tracked action", function()
     config({ chatWarnings = false, size = { width = 320, height = 300 } })
-    assert(UI.trackedButton:GetWidth() == 140 and UI.chatWarningsButton:GetWidth() == 140)
+    assert(UI.trackedButton:GetWidth() == 288 and UI.chatWarningsButton:GetWidth() == 288)
     local trackedPoint, _, _, trackedX, trackedY = UI.trackedButton:GetPoint()
     local chatPoint, _, _, chatX, chatY = UI.chatWarningsButton:GetPoint()
     assert(trackedPoint == "TOPLEFT" and trackedX == 16 and trackedY == -76)
-    assert(chatPoint == "TOPRIGHT" and chatX == -16 and chatY == trackedY)
+    assert(chatPoint == "TOPLEFT" and chatX == 16 and chatY == -54)
     assert(UI.frame:GetHeight() == 300)
 end)
 
@@ -114,7 +114,7 @@ for _, key in ipairs(mockKeys) do Mock[key] = saved[key] end
 ns.WoW.ResetWarnings()
 UI.Restore()
 ns.Refresh()
-UI.frame:SetShown(saved.shown)
+if saved.shown then UI.Open() else UI.Close() end
 Mock.Flush()
 assert(Mock.mutationCount == 0 and Mock.invalidIDCalls == 0)
 print("Chat-warning preference, button and output tests passed: " .. passed)

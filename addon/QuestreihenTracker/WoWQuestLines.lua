@@ -333,6 +333,8 @@ function WoW.OnQuestLineUpdate(requestRequired)
     if state.currentMapID then relevant[state.currentMapID] = true end
     if ns.chain and ns.chain.runtime then relevant[ns.chain.mapID] = true end
     for mapID in pairs(WoW.questLookup and WoW.questLookup.maps or {}) do relevant[mapID] = true end
+    -- Name discovery requests distant maps too; the unlabelled event refreshes their caches.
+    for mapID in pairs(WoW.nameDiscovery and WoW.nameDiscovery.maps or {}) do relevant[mapID] = true end
     for mapID in pairs(relevant) do
         if requestRequired == true and state.maps[mapID] then state.maps[mapID].needsRequest = true
         elseif state.maps[mapID] then state.maps[mapID].loaded = true end

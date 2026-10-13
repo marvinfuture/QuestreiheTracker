@@ -161,22 +161,45 @@ end
 
 -- Collect only runtime line names and retain pending entries as nonselectable information.
 local function addQuestLines(results, query)
-    local seen = {}
+    local seen, candidates = {}, {}
     for _, map in pairs(WoW.questLines.maps) do
-        for id, chain in pairs(map.byID) do
-            if not seen[id] and chain.runtime and chain.nameKnown and LiveData.IsName(chain.name) then
-                local name = folded(chain.name)
-                if name:find(query, 1, true) then
-                    seen[id] = true
-                    local quests = ns.Model.Flatten(chain)
-                    results[#results + 1] = { kind = "QUEST_LINE", name = chain.name, foldedName = name,
-                        chain = chain, selectable = not chain.loading and not chain.empty and #quests > 0,
-                        loading = chain.loading == true, exact = name == query,
-                        source = chain.source, sourceAPI = chain.nameSourceAPI or chain.sourceAPI }
-                end
+        for _, chain in pairs(map.byID) do
+            if chain.runtime and chain.nameKnown and LiveData.IsName(chain.name) then
+                candidates[#candidates + 1] = chain
             end
         end
     end
+    -- Prefer loaded membership and a stable map context when a line spans multiple maps.
+    table.sort(candidates, function(a, b)
+        if (a.loading == true) ~= (b.loading == true) then return a.loading ~= true end
+        if a.questLineID ~= b.questLineID then return a.questLineID < b.questLineID end
+        return a.mapID < b.mapID
+    end)
+    for _, chain in ipairs(candidates) do
+        if not seen[chain.questLineID] then
+            local name = folded(chain.name)
+            if name:find(query, 1, true) then
+                seen[chain.questLineID] = true
+                local quests = ns.Model.Flatten(chain)
+                results[#results + 1] = { kind = "QUEST_LINE", name = chain.name, foldedName = name,
+                    chain = chain, selectable = not chain.loading and not chain.empty and #quests > 0,
+                    loading = chain.loading == true, exact = name == query,
+                    source = chain.source, sourceAPI = chain.nameSourceAPI or chain.sourceAPI }
+            end
+        end
+    end
+end
+
+-- Allow direct opening only for one exact line, including unresolved matches in ambiguity checks.
+local function uniqueExactLine(results)
+    local match
+    for _, result in ipairs(results) do
+        if result.kind == "QUEST_LINE" and result.exact then
+            if match or not result.selectable then return nil end
+            match = result.chain
+        end
+    end
+    return match
 end
 
 -- Rank selectable lines first, then exact names and stable identifiers for unambiguous result lists.
@@ -224,6 +247,7 @@ function WoW.SearchQuestLinesByName(text)
     local query = folded(text)
     local _, characters = query:gsub("[^\128-\191]", "")
     if characters < 2 then return {}, "INVALID" end
+    local discoveryStatus = WoW.AdvanceNameDiscovery(query)
     index = index or newIndex()
     advanceIndex(index)
     local results, achievements = {}, {}
@@ -240,13 +264,15 @@ function WoW.SearchQuestLinesByName(text)
         end
     end
     table.sort(results, compareResults)
+    local exactChain = uniqueExactLine(results)
     local partial = index.partial or index.unsupported or #results > maximumResults
+        or discoveryStatus == "PARTIAL" or discoveryStatus == "UNSUPPORTED"
     for entry = #results, maximumResults + 1, -1 do results[entry] = nil end
     for _, result in ipairs(results) do
         if not refreshProgress(result) then partial = true end
     end
-    if not index.done then return results, "LOADING" end
-    if index.unsupported and #results == 0 then return results, "UNSUPPORTED" end
-    if partial then return results, "PARTIAL" end
-    return results, #results > 0 and "READY" or "EMPTY"
+    if not index.done or discoveryStatus == "LOADING" then return results, "LOADING" end
+    if index.unsupported and discoveryStatus == "UNSUPPORTED" and #results == 0 then return results, "UNSUPPORTED" end
+    if partial then return results, "PARTIAL", exactChain end
+    return results, #results > 0 and "READY" or "EMPTY", exactChain
 end

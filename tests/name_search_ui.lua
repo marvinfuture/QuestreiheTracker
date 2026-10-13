@@ -4,7 +4,8 @@ local ns, UI, passed = TEST_NS, TEST_NS.UI, 0
 Mock.Flush()
 local saved = { search = ns.WoW.SearchQuestLinesByName, db = ns.db, chain = ns.chain,
     maps = ns.WoW.questLines.maps, currentMap = ns.WoW.questLines.currentMapID,
-    shown = UI.frame:IsShown(), selectorShown = UI.selector and UI.selector:IsShown() }
+    shown = UI.frame:IsShown(), selectorShown = UI.selector and UI.selector:IsShown(),
+    membership = Mock.questLineQuests[5506] }
 ns.CancelQuestLookup()
 ns.db = ns.ReadConfig(nil)
 QuestreihenTrackerDB = ns.db
@@ -18,6 +19,7 @@ local panel = UI.selector
 local chain = assert(ns.LiveData.Build(2248, { questLineID = 5506,
     questLineName = "Name-search UI fixture" }, { 78743, 78744 }))
 ns.WoW.RegisterQuestLine(chain)
+Mock.questLineQuests[5506] = { 78743, 78744 }
 local verified = { kind = "QUEST_LINE", name = chain.name, selectable = true, chain = chain }
 local criterion = { kind = "CRITERION", name = "Trauerhöhe criterion fixture",
     achievementName = "Unlock achievement fixture", completed = false, selectable = false }
@@ -145,9 +147,41 @@ test("achievement list events invalidate discovery without selecting or mutating
     Mock.Flush()
 end)
 
+test("a settled unique exact name opens the full list like quest-ID lookup", function()
+    if not panel:IsShown() then UI.ChooseChain() end
+    local calls = 0
+    ns.WoW.SearchQuestLinesByName = function()
+        calls = calls + 1
+        return { verified }, calls == 1 and "LOADING" or "READY", chain
+    end
+    local previous = ns.chain
+    click(panel.nameSearchButton)
+    assert(ns.nameLookup and ns.nameLookup.status == "LOADING" and ns.chain.id == previous.id)
+    Mock.Flush()
+    assert(calls == 2 and ns.nameLookup == nil and ns.chain.id == chain.id)
+    assert(ns.db.liveSelection.questLineID == chain.questLineID)
+    assert(ns.result.total == 2, "Expected whole two-quest fixture; received " .. tostring(ns.result.total))
+    assert(UI.frame:IsShown() and not panel:IsShown() and #Mock.timers == 0)
+end)
+
+test("a late exact match cannot open a line after the input was edited", function()
+    UI.ChooseChain()
+    local calls = 0
+    ns.WoW.SearchQuestLinesByName = function()
+        calls = calls + 1
+        return { verified }, calls == 1 and "LOADING" or "READY", chain
+    end
+    click(panel.nameSearchButton)
+    panel.nameInput:SetText("Another line")
+    panel.nameInput.scripts.OnTextChanged(panel.nameInput)
+    Mock.Flush()
+    assert(calls == 1 and ns.nameLookup == nil and #Mock.timers == 0 and panel:IsShown())
+end)
+
 panel:Hide()
 ns.CancelQuestLookup()
 ns.WoW.SearchQuestLinesByName = saved.search
+Mock.questLineQuests[5506] = saved.membership
 ns.WoW.questLines.maps, ns.WoW.questLines.currentMapID = saved.maps, saved.currentMap
 ns.db, ns.chain = saved.db, saved.chain
 QuestreihenTrackerDB = ns.db

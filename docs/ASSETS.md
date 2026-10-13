@@ -31,3 +31,7 @@ Constraints: Brand-new original artwork. No lettering, no words, no watermark, n
 ### Client verification
 
 The generated master was visually inspected, and the runtime file encoding was checked offline. Rendering at the native minimap button size and texture loading in the WoW client still require an actual client test.
+
+## Settings gear — 0.5.1
+
+The main-window gear uses Blizzard's existing `common-dropdown-a-button-settings-shadowless` atlas. Its native use was checked on 2026-10-13 in [DamageMeterSettingsDropdownButton.xml](https://github.com/Gethe/wow-ui-source/blob/09b9db7948abc9b9648dedaab51eb0cf3ee67b31/Interface/AddOns/Blizzard_DamageMeter/DamageMeterSettingsDropdownButton.xml), pinned to the reviewed live UI export. No new bundled bitmap is introduced. Actual atlas availability, clarity and alignment at the tracker's minimum/default sizes remain client checks.

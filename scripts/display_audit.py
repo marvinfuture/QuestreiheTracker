@@ -20,7 +20,8 @@ API_MEMBERS = {
     "C_QuestLine.GetQuestLineInfo", "C_SuperTrack.GetSuperTrackedQuestID",
     "C_SuperTrack.SetSuperTrackedQuestID",
     "C_SuperTrack.IsSuperTrackingQuest", "C_SuperTrack.GetHighestPrioritySuperTrackingType",
-    "C_Map.GetMapInfo", "C_GossipInfo.GetAvailableQuests", "C_Timer.After", "C_Timer.NewTimer",
+    "C_Map.GetMapInfo", "C_Map.GetMapChildrenInfo", "C_Map.GetFallbackWorldMapID",
+    "C_GossipInfo.GetAvailableQuests", "C_Timer.After", "C_Timer.NewTimer",
 }
 API_NAMESPACES = {member.split(".")[0] for member in API_MEMBERS}
 SAFE_GLOBALS = {

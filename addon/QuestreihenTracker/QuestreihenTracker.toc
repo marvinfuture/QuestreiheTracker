@@ -2,7 +2,7 @@
 ## Title: Questreihen Tracker
 ## Notes: Compact quest-line tracker with runtime Blizzard data and German UI.
 ## Author: Questreihen Tracker contributors
-## Version: 0.5.0
+## Version: 0.5.2
 ## SavedVariablesPerCharacter: QuestreihenTrackerDB
 
 Locale.lua
@@ -11,8 +11,10 @@ Model.lua
 WoW.lua
 WoWQuestLines.lua
 WoWQuestLookup.lua
+WoWNameDiscovery.lua
 WoWNameSearch.lua
 UIHelpers.lua
 UI.lua
+UISettings.lua
 Minimap.lua
 Core.lua
